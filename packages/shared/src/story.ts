@@ -17,33 +17,63 @@ export const ObserveTaskSchema = TaskBaseSchema.extend({
   type: z.literal('observe'),
   observationAnchors: z.array(NonEmptyStringSchema).min(1),
 })
+export type ObserveTask = z.infer<typeof ObserveTaskSchema>
 
 export const PhotoTaskSchema = TaskBaseSchema.extend({
   type: z.literal('photo'),
   photoPrompt: NonEmptyStringSchema,
 })
+export type PhotoTask = z.infer<typeof PhotoTaskSchema>
+
+export const PuzzleDefinitionSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('single'),
+    options: z.array(NonEmptyStringSchema).min(2),
+    answer: NonEmptyStringSchema,
+  }),
+  z.object({
+    kind: z.literal('multiple'),
+    options: z.array(NonEmptyStringSchema).min(2),
+    answers: z.array(NonEmptyStringSchema).min(1),
+  }),
+  z.object({
+    kind: z.literal('order'),
+    options: z.array(NonEmptyStringSchema).min(2),
+    answerOrder: z.array(NonEmptyStringSchema).min(2),
+  }),
+  z.object({
+    kind: z.literal('observation_code'),
+    code: NonEmptyStringSchema,
+  }),
+])
+export type PuzzleDefinition = z.infer<typeof PuzzleDefinitionSchema>
 
 export const PuzzleTaskSchema = TaskBaseSchema.extend({
   type: z.literal('puzzle'),
   question: NonEmptyStringSchema,
   hint: NonEmptyStringSchema,
   answerValidation: NonEmptyStringSchema,
+  puzzle: PuzzleDefinitionSchema.optional(),
 })
+export type PuzzleTask = z.infer<typeof PuzzleTaskSchema>
 
 export const SoundscapeTaskSchema = TaskBaseSchema.extend({
   type: z.literal('soundscape'),
   listeningPrompt: NonEmptyStringSchema,
 })
+export type SoundscapeTask = z.infer<typeof SoundscapeTaskSchema>
 
 export const JournalTaskSchema = TaskBaseSchema.extend({
   type: z.literal('journal'),
   journalPrompt: NonEmptyStringSchema,
 })
+export type JournalTask = z.infer<typeof JournalTaskSchema>
 
 export const CompanionTaskSchema = TaskBaseSchema.extend({
   type: z.literal('companion'),
   interactionPrompt: NonEmptyStringSchema,
 })
+export type CompanionTask = z.infer<typeof CompanionTaskSchema>
 
 export const TaskSchema = z.discriminatedUnion('type', [
   ObserveTaskSchema,
@@ -55,11 +85,7 @@ export const TaskSchema = z.discriminatedUnion('type', [
 ])
 export type Task = z.infer<typeof TaskSchema>
 
-export const FlagValueSchema = z.union([
-  z.boolean(),
-  z.string(),
-  z.number(),
-])
+export const FlagValueSchema = z.union([z.boolean(), z.string(), z.number()])
 
 export const ChoiceEffectSchema = z
   .object({
@@ -79,9 +105,12 @@ export const ChoiceEffectSchema = z
       .optional(),
     nextNodeId: NonEmptyStringSchema.optional(),
   })
-  .refine((effect) => Object.values(effect).some((value) => value !== undefined), {
-    message: 'ChoiceEffect must contain at least one effect',
-  })
+  .refine(
+    (effect) => Object.values(effect).some((value) => value !== undefined),
+    {
+      message: 'ChoiceEffect must contain at least one effect',
+    },
+  )
 export type ChoiceEffect = z.infer<typeof ChoiceEffectSchema>
 
 export const StoryChoiceSchema = z.object({
@@ -153,9 +182,7 @@ export const StoryStateDefinitionSchema = z.object({
   initialItems: z.array(NonEmptyStringSchema),
   initialFlags: z.record(NonEmptyStringSchema, FlagValueSchema),
 })
-export type StoryStateDefinition = z.infer<
-  typeof StoryStateDefinitionSchema
->
+export type StoryStateDefinition = z.infer<typeof StoryStateDefinitionSchema>
 
 export const StoryGraphSchema = z
   .object({

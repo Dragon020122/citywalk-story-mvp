@@ -1,17 +1,45 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import type { GenerationResult } from '../journey-storage'
-import { Compass, Copy, Navigation, Route } from 'lucide-react'
-import { Navigate, useParams } from 'react-router-dom'
+import {
+  Compass,
+  Copy,
+  Navigation,
+  Pause,
+  Play,
+  Route,
+  XCircle,
+} from 'lucide-react'
+import { Link, Navigate, useParams } from 'react-router-dom'
+import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
 import { rerouteJourney } from '../api-client'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
 import { ArchiveLabel, StatusBadge } from '../components/Labels'
 import { PageShell } from '../components/PageShell'
 import { Toast } from '../components/Toast'
+import { InventoryPanel } from '../gameplay/InventoryPanel'
+import { TaskRenderer } from '../gameplay/TaskComponents'
+import { useGameplay } from '../gameplay/use-gameplay'
+import type { ResumeState } from '../gameplay/gameplay-machine'
 import { loadGenerationResult, saveGenerationResult } from '../journey-storage'
 import { copyPoiAddress, openTencentNavigation } from '../maps/navigation'
 import { RouteMap } from '../maps/RouteMap'
+
+const stateLabels = {
+  idle: '尚未开始',
+  navigating: '前往地点',
+  arrived: '已经到达',
+  reading: '阅读剧情',
+  tasking: '现场任务',
+  choosing: '剧情选择',
+  node_completed: '节点完成',
+  rerouting: '正在改线',
+  paused: '漫游暂停',
+  ending: '结局生成',
+  completed: '漫游完成',
+  abandoned: '漫游已放弃',
+  error: '需要处理',
+} as const
 
 const unavailableReasons = [
   '地点暂时关闭',
@@ -22,26 +50,67 @@ const unavailableReasons = [
 export function PlayPage() {
   const { storyId } = useParams()
   const initialResult = loadGenerationResult()
-  const [result, setResult] = useState<GenerationResult | null>(initialResult)
-  const [currentIndex] = useState(0)
+  const [result, setResult] = useState(initialResult)
   const [navigationMessage, setNavigationMessage] = useState('')
   const rerouteController = useRef<AbortController | null>(null)
-  const currentPoi = result?.routePlan.selectedPois[currentIndex]
-  const nextPoi = result?.routePlan.selectedPois[currentIndex + 1]
-  const currentNode = useMemo(
-    () =>
-      result?.story.storyGraph.nodes.find(
-        (node) => node.poiId === currentPoi?.id,
-      ),
-    [currentPoi?.id, result?.story.storyGraph.nodes],
+
+  if (!result || !storyId || result.story.blueprint.storyId !== storyId) {
+    return <Navigate to="/create" replace />
+  }
+
+  return (
+    <GameplayScreen
+      key={storyId}
+      storyId={storyId}
+      result={result}
+      setResult={setResult}
+      navigationMessage={navigationMessage}
+      setNavigationMessage={setNavigationMessage}
+      rerouteController={rerouteController}
+    />
+  )
+}
+
+interface GameplayScreenProps {
+  storyId: string
+  result: NonNullable<ReturnType<typeof loadGenerationResult>>
+  setResult: Dispatch<SetStateAction<ReturnType<typeof loadGenerationResult>>>
+  navigationMessage: string
+  setNavigationMessage: (message: string) => void
+  rerouteController: MutableRefObject<AbortController | null>
+}
+
+function GameplayScreen({
+  storyId,
+  result,
+  setResult,
+  navigationMessage,
+  setNavigationMessage,
+  rerouteController,
+}: GameplayScreenProps) {
+  const { state, graph, runtime, send } = useGameplay(
+    storyId,
+    result.story.storyGraph,
+  )
+  const currentNode = graph.nodes.find(
+    (node) => node.id === runtime.currentNodeId,
+  )
+  const currentPoi =
+    result.routePlan.selectedPois.find(
+      (poi) => poi.id === currentNode?.poiId,
+    ) ?? result.routePlan.selectedPois[0]
+  const nextNode = currentNode
+    ? graph.nodes.find((node) => node.id === currentNode.next)
+    : undefined
+  const nextPoi = result.routePlan.selectedPois.find(
+    (poi) => poi.id === nextNode?.poiId,
   )
 
   const rerouteMutation = useMutation({
-    mutationKey: ['story-reroute', storyId],
+    mutationKey: ['story-reroute', storyId, currentPoi?.id],
     mutationFn: async () => {
-      if (!result || !storyId || !currentPoi) {
-        throw new Error('当前故事或地点不存在。')
-      }
+      if (!currentPoi) throw new Error('当前节点没有可用地点。')
+      send({ type: 'START_REROUTE' })
       const controller = new AbortController()
       rerouteController.current = controller
       return rerouteJourney(
@@ -56,18 +125,18 @@ export function PlayPage() {
       )
     },
     onSuccess: (rerouted) => {
-      if (!result) return
-      const updated: GenerationResult = {
+      const updated = {
         ...result,
         routePlan: rerouted.routePlan,
-        story: {
-          ...result.story,
-          storyGraph: rerouted.storyGraph,
-        },
+        story: { ...result.story, storyGraph: rerouted.storyGraph },
         savedAt: new Date().toISOString(),
       }
       saveGenerationResult(updated)
       setResult(updated)
+      send({ type: 'REROUTE_SUCCESS', graph: rerouted.storyGraph })
+    },
+    onError: (error: Error) => {
+      send({ type: 'REROUTE_FAILURE', message: error.message })
     },
     onSettled: () => {
       rerouteController.current = null
@@ -78,15 +147,15 @@ export function PlayPage() {
     () => () => {
       rerouteController.current?.abort()
     },
-    [],
+    [rerouteController],
   )
 
-  if (!result || !storyId || result.story.blueprint.storyId !== storyId) {
-    return <Navigate to="/create" replace />
-  }
-  if (!currentPoi) return <Navigate to="/create" replace />
+  useEffect(() => {
+    if (!currentNode || !currentPoi) {
+      send({ type: 'FAIL', message: '当前节点或 POI 不存在。' })
+    }
+  }, [currentNode, currentPoi, send])
 
-  const destination = nextPoi ?? currentPoi
   const navigationConfig = {
     baseUrl:
       import.meta.env.VITE_TENCENT_MAP_NAV_BASE_URL ||
@@ -95,7 +164,8 @@ export function PlayPage() {
   }
 
   const openNavigation = async () => {
-    const outcome = await openTencentNavigation(destination, navigationConfig)
+    if (!currentPoi) return
+    const outcome = await openTencentNavigation(currentPoi, navigationConfig)
     setNavigationMessage(
       outcome === 'opened'
         ? '已打开腾讯地图路线页面'
@@ -106,87 +176,293 @@ export function PlayPage() {
   }
 
   const copyAddress = async () => {
+    if (!currentPoi) return
     setNavigationMessage(
-      (await copyPoiAddress(destination))
+      (await copyPoiAddress(currentPoi))
         ? '目的地地址已复制'
         : '复制失败，请长按地址手动复制',
     )
   }
 
+  const completedCount = runtime.completedNodeIds.length
+  const activePausable = ![
+    'idle',
+    'paused',
+    'ending',
+    'completed',
+    'abandoned',
+    'error',
+  ].includes(state)
+
   return (
     <PageShell
-      title="漫游进行中"
-      eyebrow={`STOP ${String(currentIndex + 1).padStart(2, '0')}`}
-      action={
-        <Button fullWidth onClick={() => void openNavigation()}>
-          <Navigation aria-hidden="true" />
-          打开腾讯地图导航
-        </Button>
-      }
+      title="漫游执行引擎"
+      eyebrow={`${stateLabels[state]} · ${completedCount}/${graph.nodes.length}`}
     >
       <div className="play-route-heading">
         <ArchiveLabel>{storyId}</ArchiveLabel>
-        <StatusBadge tone={result.routePlan.degraded ? 'warning' : 'success'}>
-          {result.routePlan.degraded ? '人工距离路线' : '腾讯步行路线'}
+        <StatusBadge
+          tone={
+            state === 'error' || state === 'abandoned' ? 'danger' : 'success'
+          }
+        >
+          {stateLabels[state]}
         </StatusBadge>
       </div>
-      <RouteMap
-        routePlan={result.routePlan}
-        currentPoiId={currentPoi.id}
-        nextPoiId={nextPoi?.id}
+
+      {currentPoi && (
+        <RouteMap
+          routePlan={result.routePlan}
+          currentPoiId={currentPoi.id}
+          nextPoiId={nextPoi?.id}
+        />
+      )}
+
+      {state === 'idle' && (
+        <Card className="gameplay-stage">
+          <span className="section-kicker">READY</span>
+          <h1>{result.story.blueprint.title}</h1>
+          <p>{result.story.blueprint.mission}</p>
+          <Button fullWidth onClick={() => send({ type: 'START' })}>
+            <Play aria-hidden="true" />
+            开始前往第一站
+          </Button>
+        </Card>
+      )}
+
+      {state === 'navigating' && currentPoi && currentNode && (
+        <Card className="gameplay-stage">
+          <span className="section-kicker">NAVIGATING</span>
+          <h1>{currentPoi.shortName}</h1>
+          <p>{currentPoi.address}</p>
+          <Button fullWidth onClick={() => void openNavigation()}>
+            <Navigation aria-hidden="true" />
+            打开腾讯地图导航
+          </Button>
+          <Button
+            variant="secondary"
+            fullWidth
+            onClick={() => send({ type: 'ARRIVE' })}
+          >
+            我已到达
+          </Button>
+          <Button variant="quiet" onClick={() => void copyAddress()}>
+            <Copy aria-hidden="true" />
+            复制地址
+          </Button>
+        </Card>
+      )}
+
+      {state === 'arrived' && currentNode && (
+        <Card className="gameplay-stage">
+          <span className="section-kicker">ARRIVAL</span>
+          <h1>{currentNode.title}</h1>
+          <p>
+            {currentNode.arrivalText ??
+              '你已抵达故事节点，周围的细节开始进入档案。'}
+          </p>
+          {currentNode.safetyNotice && (
+            <small>{currentNode.safetyNotice}</small>
+          )}
+          <Button fullWidth onClick={() => send({ type: 'READ_ARRIVAL' })}>
+            阅读剧情
+          </Button>
+        </Card>
+      )}
+
+      {state === 'reading' && currentNode && (
+        <section className="story-scene gameplay-stage">
+          <span className="section-kicker">STORY</span>
+          <h1>{currentNode.title}</h1>
+          <p>{currentNode.storyText}</p>
+          <Button fullWidth onClick={() => send({ type: 'FINISH_READING' })}>
+            继续
+          </Button>
+        </section>
+      )}
+
+      {state === 'tasking' && currentNode?.task && (
+        <Card className="gameplay-stage">
+          <StatusBadge tone="warning">{currentNode.task.title}</StatusBadge>
+          <h2>完成现场任务</h2>
+          <TaskRenderer
+            task={currentNode.task}
+            onComplete={(completion) =>
+              send({ type: 'COMPLETE_TASK', ...completion })
+            }
+          />
+        </Card>
+      )}
+
+      {state === 'choosing' && currentNode && (
+        <Card className="gameplay-stage">
+          <span className="section-kicker">
+            {currentNode.type === 'side_quest' ? 'SIDE QUEST' : 'CHOICE'}
+          </span>
+          <h2>
+            {currentNode.type === 'side_quest'
+              ? '接受、拒绝或结束这条支线'
+              : '做出选择'}
+          </h2>
+          <div className="choice-actions">
+            {currentNode.choices.map((choice) => (
+              <Button
+                variant="secondary"
+                key={choice.id}
+                onClick={() =>
+                  send({ type: 'SUBMIT_CHOICE', choiceId: choice.id })
+                }
+              >
+                {choice.text}
+              </Button>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {state === 'node_completed' && currentNode && (
+        <Card className="gameplay-stage reward-card">
+          <StatusBadge tone="success">节点已完成</StatusBadge>
+          <h2>{currentNode.title}</h2>
+          <p>
+            奖励已记入档案：{currentNode.rewards.clues.length} 条线索，
+            {currentNode.rewards.items.length} 件道具。
+          </p>
+          <Button fullWidth onClick={() => send({ type: 'ADVANCE' })}>
+            前往下一站
+            <Route aria-hidden="true" />
+          </Button>
+        </Card>
+      )}
+
+      {state === 'rerouting' && (
+        <Card className="gameplay-stage">
+          <h2>正在计算备用节点</h2>
+          <p>只会从人工策展的备用 POI 中选择。</p>
+        </Card>
+      )}
+
+      {state === 'paused' && (
+        <Card className="gameplay-stage">
+          <h2>漫游已暂停</h2>
+          <p>进度已经保存在当前设备，恢复后继续原来的状态。</p>
+          <Button fullWidth onClick={() => send({ type: 'RESUME' })}>
+            <Play aria-hidden="true" />
+            恢复漫游
+          </Button>
+        </Card>
+      )}
+
+      {state === 'ending' && (
+        <Card className="gameplay-stage ending-card">
+          <ArchiveLabel>{runtime.endingId ?? 'ENDING'}</ArchiveLabel>
+          <h1>{runtime.endingTitle}</h1>
+          <p>{runtime.endingSummary}</p>
+          <Button fullWidth onClick={() => send({ type: 'FINISH_ENDING' })}>
+            收录结局
+          </Button>
+        </Card>
+      )}
+
+      {state === 'completed' && (
+        <Card className="gameplay-stage">
+          <StatusBadge tone="success">漫游完成</StatusBadge>
+          <h1>{runtime.endingTitle}</h1>
+          <p>{runtime.endingSummary}</p>
+          <Link
+            className="button button--primary button--full"
+            to={`/story/${storyId}/result`}
+          >
+            查看结案页
+          </Link>
+        </Card>
+      )}
+
+      {state === 'abandoned' && (
+        <Card className="gameplay-stage">
+          <h2>本次漫游已放弃</h2>
+          <Link className="button button--secondary button--full" to="/">
+            返回首页
+          </Link>
+        </Card>
+      )}
+
+      {state === 'error' && (
+        <Card className="gameplay-stage">
+          <StatusBadge tone="danger">运行时错误</StatusBadge>
+          <h2>节点无法继续</h2>
+          <p>{runtime.error}</p>
+          <Button fullWidth onClick={() => send({ type: 'RETRY_NODE' })}>
+            回退到安全节点
+          </Button>
+          <Button
+            variant="secondary"
+            fullWidth
+            onClick={() => send({ type: 'END_EARLY' })}
+          >
+            生成未完成结局
+          </Button>
+        </Card>
+      )}
+
+      {!['completed', 'abandoned', 'ending', 'error'].includes(state) && (
+        <section className="gameplay-controls" aria-label="漫游控制">
+          {activePausable && (
+            <Button
+              variant="secondary"
+              onClick={() =>
+                send({ type: 'PAUSE', from: state as ResumeState })
+              }
+            >
+              <Pause aria-hidden="true" />
+              暂停
+            </Button>
+          )}
+          <Button variant="quiet" onClick={() => send({ type: 'END_EARLY' })}>
+            <XCircle aria-hidden="true" />
+            提前结束
+          </Button>
+        </section>
+      )}
+
+      {state === 'navigating' && (
+        <section
+          className="poi-unavailable"
+          aria-labelledby="unavailable-title"
+        >
+          <span className="section-kicker">ROUTE EXCEPTION</span>
+          <h2 id="unavailable-title">这个地点无法继续？</h2>
+          <p>选择现场情况后，仅从人工策展的备用节点重新规划。</p>
+          <div>
+            {unavailableReasons.map((reason) => (
+              <Button
+                variant="secondary"
+                key={reason}
+                disabled={rerouteMutation.isPending}
+                onClick={() => rerouteMutation.mutate()}
+              >
+                {reason}
+              </Button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <InventoryPanel
+        blueprint={result.story.blueprint}
+        graph={graph}
+        runtime={runtime}
       />
-      <Card className="current-poi-card">
-        <span className="section-kicker">CURRENT POI</span>
-        <h1>{currentPoi.shortName}</h1>
-        <p>{currentPoi.address}</p>
-        {currentNode && (
-          <>
-            <h2>{currentNode.title}</h2>
-            <p>{currentNode.storyText}</p>
-          </>
-        )}
-        <Button variant="quiet" onClick={() => void copyAddress()}>
-          <Copy aria-hidden="true" />
-          复制目的地地址
-        </Button>
-      </Card>
       {nextPoi && (
         <Card className="next-poi-card">
           <Compass aria-hidden="true" />
           <span>
-            <small>下一点</small>
+            <small>下一地点</small>
             <strong>{nextPoi.shortName}</strong>
           </span>
           <Route aria-hidden="true" />
         </Card>
       )}
-      <section className="poi-unavailable" aria-labelledby="unavailable-title">
-        <span className="section-kicker">ROUTE EXCEPTION</span>
-        <h2 id="unavailable-title">这个地点无法继续？</h2>
-        <p>请选择现场情况，我们会调用 reroute 接口更换人工策展的备用节点。</p>
-        <div>
-          {unavailableReasons.map((reason) => (
-            <Button
-              variant="secondary"
-              key={reason}
-              disabled={rerouteMutation.isPending}
-              onClick={() => rerouteMutation.mutate()}
-            >
-              {reason}
-            </Button>
-          ))}
-        </div>
-        {rerouteMutation.isSuccess && (
-          <p className="reroute-success" role="status">
-            已替换为备用地点并更新路线。
-          </p>
-        )}
-        {rerouteMutation.isError && (
-          <p className="field-error" role="alert">
-            {rerouteMutation.error.message}
-          </p>
-        )}
-      </section>
       <Toast message={navigationMessage} visible={Boolean(navigationMessage)} />
     </PageShell>
   )

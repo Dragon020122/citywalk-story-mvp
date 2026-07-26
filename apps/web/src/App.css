@@ -1779,6 +1779,118 @@ legend {
   gap: 8px;
 }
 
+.gameplay-stage {
+  margin-top: 16px;
+}
+
+.gameplay-stage h1,
+.gameplay-stage h2 {
+  margin: 14px 0 10px;
+}
+
+.gameplay-stage .button + .button,
+.task-body .button {
+  margin-top: 10px;
+}
+
+.gameplay-controls {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 18px 0;
+  border-block: 1px solid var(--line);
+  padding-block: 10px;
+}
+
+.task-body,
+.choice-actions,
+.puzzle-options {
+  display: grid;
+  gap: 10px;
+}
+
+.task-check,
+.task-field {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1px solid #d8d0c2;
+  color: var(--ink);
+  background: rgb(255 255 255 / 32%);
+}
+
+.task-field {
+  flex-direction: column;
+}
+
+.task-field input,
+.task-field textarea {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #bcb3a5;
+  padding: 10px;
+  color: var(--ink);
+  background: #fffdf8;
+}
+
+.task-field textarea {
+  min-height: 112px;
+  resize: vertical;
+}
+
+.inventory-panel {
+  margin-top: 34px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.inventory-panel__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.inventory-panel__heading h2,
+.inventory-subtitle {
+  margin: 5px 0 0;
+  color: var(--warm-white);
+}
+
+.inventory-hint,
+.clue-card,
+.item-card {
+  margin-top: 10px;
+}
+
+.inventory-hint p,
+.clue-card p,
+.item-card p {
+  margin-bottom: 0;
+}
+
+.clue-card small {
+  display: block;
+  margin-top: 8px;
+  color: #736b60;
+}
+
+.clue-card--locked,
+.item-card--locked {
+  opacity: 0.58;
+  filter: saturate(0.35);
+}
+
+.inventory-subtitle {
+  margin-top: 24px;
+}
+
+.ending-card .archive-label {
+  color: var(--signal);
+}
+
 @media (max-width: 374px) {
   .form-option-grid {
     grid-template-columns: 1fr;

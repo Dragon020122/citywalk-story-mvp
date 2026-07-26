@@ -4,8 +4,6 @@ import {
   BookOpen,
   Check,
   Download,
-  MapPinned,
-  PackageOpen,
   RotateCcw,
   Settings,
   Signal,
@@ -22,6 +20,9 @@ import { RouteStep } from '../components/RouteStep'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { EmptyState, ErrorState, OfflineBanner } from '../components/States'
 import { Toast } from '../components/Toast'
+import { InventoryPanel } from '../gameplay/InventoryPanel'
+import { loadGameplay } from '../gameplay/gameplay-storage'
+import { loadGenerationResult } from '../journey-storage'
 
 interface PageShellProps extends PropsWithChildren {
   title: string
@@ -197,61 +198,88 @@ export function PlayPage() {
 }
 
 export function InventoryPage() {
+  const { storyId = '' } = useParams()
+  const result = loadGenerationResult()
+  const restored =
+    result && result.story.blueprint.storyId === storyId
+      ? loadGameplay(storyId, result.story.storyGraph)
+      : null
+
   return (
     <PageShell title="随身档案" eyebrow="INVENTORY">
       <StoryIdLabel />
-      <div className="metric-grid">
-        <Card>
-          <PackageOpen aria-hidden="true" />
-          <strong>02</strong>
-          <span>物件</span>
-        </Card>
-        <Card>
-          <MapPinned aria-hidden="true" />
-          <strong>03</strong>
-          <span>线索</span>
-        </Card>
-      </div>
-      <Card>
-        <ArchiveLabel>ITEM / 002</ArchiveLabel>
-        <h2>折叠过四次的船票</h2>
-        <p className="muted">
-          票面时间被红笔改成 19:17，背面压有一个不完整的圆形印章。
-        </p>
-      </Card>
+      {result && restored ? (
+        <InventoryPanel
+          blueprint={result.story.blueprint}
+          graph={result.story.storyGraph}
+          runtime={restored.runtime}
+        />
+      ) : (
+        <EmptyState
+          title="还没有可恢复的线索背包"
+          description="开始漫游并完成一个节点后，线索与道具会保存在当前设备。"
+        />
+      )}
     </PageShell>
   )
 }
 
 export function JournalPage() {
+  const { storyId = '' } = useParams()
+  const result = loadGenerationResult()
+  const restored =
+    result && result.story.blueprint.storyId === storyId
+      ? loadGameplay(storyId, result.story.storyGraph)
+      : null
+
   return (
     <PageShell title="漫游手记" eyebrow="JOURNAL">
       <StoryIdLabel />
-      <Card className="journal-entry">
-        <span>今天 · 18:40</span>
-        <h2>雨声盖住了一部分广播</h2>
-        <p>我记得最后一句是“让没有编号的事物继续存在”。</p>
-      </Card>
-      <EmptyState
-        title="还没有新的手记"
-        description="完成现场任务后，新的记录会出现在这里。"
-      />
+      {restored?.runtime.journalEntries.map((entry, index) => (
+        <Card className="journal-entry" key={`${entry.nodeId}-${index}`}>
+          <span>节点记录 · {String(index + 1).padStart(2, '0')}</span>
+          <h2>
+            {result?.story.storyGraph.nodes.find(
+              (node) => node.id === entry.nodeId,
+            )?.title ?? entry.nodeId}
+          </h2>
+          <p>{entry.text}</p>
+        </Card>
+      ))}
+      {!restored?.runtime.journalEntries.length && (
+        <EmptyState
+          title="还没有新的手记"
+          description="完成手记任务后，新的记录会出现在这里。"
+        />
+      )}
     </PageShell>
   )
 }
 
 export function ResultPage() {
+  const { storyId = '' } = useParams()
+  const result = loadGenerationResult()
+  const restored =
+    result && result.story.blueprint.storyId === storyId
+      ? loadGameplay(storyId, result.story.storyGraph)
+      : null
+
   return (
     <PageShell title="档案结案" eyebrow="RESULT">
       <section className="result-mark">
-        <span>结局 02 / 04</span>
-        <strong>留下那一分钟</strong>
+        <span>{restored?.runtime.endingId ?? 'ENDING UNKNOWN'}</span>
+        <strong>{restored?.runtime.endingTitle ?? '结局尚未收录'}</strong>
       </section>
       <Card>
-        <StatusBadge tone="success">已结案</StatusBadge>
-        <h2>城市允许一个误差存在</h2>
+        <StatusBadge
+          tone={restored?.state === 'completed' ? 'success' : 'warning'}
+        >
+          {restored?.state === 'completed' ? '已结案' : '未完成'}
+        </StatusBadge>
+        <h2>{restored?.runtime.endingTitle ?? '故事仍在进行'}</h2>
         <p className="muted">
-          你没有修正最后的钟。那一分钟留在河岸，成为只有步行者知道的暗线。
+          {restored?.runtime.endingSummary ??
+            '返回漫游页继续推进节点，或选择提前结束生成未完成结局。'}
         </p>
       </Card>
     </PageShell>

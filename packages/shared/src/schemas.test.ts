@@ -5,6 +5,7 @@ import {
   PoiSchema,
   StoryGraphSchema,
   StoryRunSchema,
+  TaskSchema,
   type Poi,
   type RoutePlan,
   type StoryGraph,
@@ -222,6 +223,44 @@ describe('StoryRunSchema', () => {
     })
 
     expect(result.success).toBe(true)
+  })
+})
+
+describe('PuzzleTaskSchema', () => {
+  const basePuzzle = {
+    id: 'puzzle-1',
+    type: 'puzzle',
+    title: '现场谜题',
+    instructions: '只观察公共空间。',
+    required: true,
+    estimatedMinutes: 2,
+    question: '请选择或排列现场标记。',
+    hint: '留意重复出现的符号。',
+    answerValidation: 'structured-v1',
+  } as const
+
+  it.each([
+    {
+      kind: 'single',
+      options: ['A', 'B'],
+      answer: 'A',
+    },
+    {
+      kind: 'multiple',
+      options: ['A', 'B', 'C'],
+      answers: ['A', 'C'],
+    },
+    {
+      kind: 'order',
+      options: ['A', 'B', 'C'],
+      answerOrder: ['B', 'A', 'C'],
+    },
+    {
+      kind: 'observation_code',
+      code: '2718',
+    },
+  ])('supports $kind puzzles without open-ended AI judging', (puzzle) => {
+    expect(TaskSchema.safeParse({ ...basePuzzle, puzzle }).success).toBe(true)
   })
 })
 
