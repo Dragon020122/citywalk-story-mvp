@@ -6,8 +6,12 @@ import {
   type StoryGraph,
   type StoryRuntimeState,
 } from '@citywalk/shared'
-
-export const GAMEPLAY_SNAPSHOT_KEY_PREFIX = 'citywalk.gameplay.v1.'
+import {
+  db,
+  quarantineRecord,
+  type LocalStoryStatus,
+  type StoryRunRecord,
+} from '../persistence/database'
 
 export interface RestoredGameplay {
   state: GameplayState
@@ -15,38 +19,54 @@ export interface RestoredGameplay {
   runtime: StoryRuntimeState
 }
 
-const keyFor = (storyId: string) => `${GAMEPLAY_SNAPSHOT_KEY_PREFIX}${storyId}`
+let writeChain: Promise<void> = Promise.resolve()
 
-export function loadGameplay(
+function runStatus(state: GameplayState): LocalStoryStatus {
+  if (state === 'completed') return 'completed'
+  if (state === 'abandoned') return 'abandoned'
+  return 'in_progress'
+}
+
+export async function loadGameplay(
   storyId: string,
   graph: StoryGraph,
-): RestoredGameplay | null {
-  const raw = window.localStorage.getItem(keyFor(storyId))
-  if (!raw) return null
-
-  try {
-    const parsed = PersistedGameplaySnapshotSchema.safeParse(JSON.parse(raw))
-    if (!parsed.success || parsed.data.storyId !== storyId) {
-      window.localStorage.removeItem(keyFor(storyId))
-      return null
-    }
-    const validated = validateRuntimeState(graph, parsed.data.runtime)
-    if (!validated.success) {
-      window.localStorage.removeItem(keyFor(storyId))
-      return null
-    }
-    return {
-      state: parsed.data.state,
-      resumeState: parsed.data.resumeState,
-      runtime: validated.data,
-    }
-  } catch {
-    window.localStorage.removeItem(keyFor(storyId))
+): Promise<RestoredGameplay | null> {
+  const record = await db.storyRuns.get(storyId)
+  if (!record) return null
+  const parsed = PersistedGameplaySnapshotSchema.safeParse({
+    version: 1,
+    storyId,
+    state: record.state,
+    resumeState: record.resumeState,
+    runtime: record.runtime,
+  })
+  if (!parsed.success) {
+    await quarantineRecord({
+      table: 'storyRuns',
+      key: storyId,
+      raw: record,
+      error: parsed.error.message,
+    })
     return null
+  }
+  const validated = validateRuntimeState(graph, parsed.data.runtime)
+  if (!validated.success) {
+    await quarantineRecord({
+      table: 'storyRuns',
+      key: storyId,
+      raw: record,
+      error: validated.errors.join('; '),
+    })
+    return null
+  }
+  return {
+    state: parsed.data.state,
+    resumeState: parsed.data.resumeState,
+    runtime: validated.data,
   }
 }
 
-export function saveGameplay(
+export async function saveGameplay(
   storyId: string,
   state: GameplayState,
   runtime: StoryRuntimeState,
@@ -59,9 +79,80 @@ export function saveGameplay(
     resumeState,
     runtime,
   })
-  window.localStorage.setItem(keyFor(storyId), JSON.stringify(snapshot))
+  const now = new Date().toISOString()
+
+  await db.transaction(
+    'rw',
+    db.storyRuns,
+    db.stories,
+    db.journalEntries,
+    db.syncQueue,
+    async () => {
+      const previousStory = await db.stories.get(storyId)
+      const record: StoryRunRecord = {
+        storyId,
+        state,
+        resumeState,
+        runtime: snapshot.runtime,
+        updatedAt: now,
+      }
+      await db.storyRuns.put(record)
+
+      if (previousStory) {
+        const status = runStatus(state)
+        await db.stories.update(storyId, {
+          status,
+          updatedAt: now,
+          completedAt: status === 'completed' ? now : previousStory.completedAt,
+        })
+        if (status === 'completed' && previousStory.status !== 'completed') {
+          await db.syncQueue.add({
+            kind: 'story_completion',
+            payload: {
+              storyId,
+              endingId: runtime.endingId,
+              completedAt: now,
+            },
+            attempts: 0,
+            nextAttemptAt: 0,
+            createdAt: now,
+            lastError: null,
+          })
+        }
+      }
+
+      await db.journalEntries.where('storyId').equals(storyId).delete()
+      if (runtime.journalEntries.length) {
+        await db.journalEntries.bulkPut(
+          runtime.journalEntries.map((entry, index) => ({
+            id: `${storyId}:${entry.nodeId}:${index}`,
+            storyId,
+            nodeId: entry.nodeId,
+            text: entry.text,
+            createdAt: now,
+          })),
+        )
+      }
+    },
+  )
 }
 
-export function clearGameplay(storyId: string) {
-  window.localStorage.removeItem(keyFor(storyId))
+export function scheduleGameplaySave(
+  storyId: string,
+  state: GameplayState,
+  runtime: StoryRuntimeState,
+  resumeState: ResumableGameplayState,
+) {
+  writeChain = writeChain
+    .catch(() => undefined)
+    .then(() => saveGameplay(storyId, state, runtime, resumeState))
+  return writeChain
+}
+
+export async function flushGameplaySaves() {
+  await writeChain
+}
+
+export async function clearGameplay(storyId: string) {
+  await db.storyRuns.delete(storyId)
 }

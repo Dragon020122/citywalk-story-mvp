@@ -4,12 +4,12 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 import {
-  GENERATION_RESULT_KEY,
-  JOURNEY_DRAFT_KEY,
-  PENDING_GENERATION_KEY,
+  loadGenerationResult,
   saveGenerationResult,
+  saveJourneyDraft,
   savePendingGeneration,
 } from './journey-storage'
+import { db } from './persistence/database'
 import { queryClient } from './query-client'
 import { testGenerationResult } from './test/generation-fixture'
 
@@ -21,15 +21,8 @@ function renderRoute(path: string) {
   )
 }
 
-function saveDraft(step: number) {
-  window.localStorage.setItem(
-    JOURNEY_DRAFT_KEY,
-    JSON.stringify({
-      version: 1,
-      step,
-      values: testGenerationResult.preferences,
-    }),
-  )
+async function saveDraft(step: number) {
+  await saveJourneyDraft(step, testGenerationResult.preferences)
 }
 
 afterEach(() => {
@@ -60,17 +53,13 @@ describe('创建行程表单', () => {
   })
 
   it('最多允许选择四项兴趣', async () => {
-    saveDraft(3)
-    window.localStorage.setItem(
-      JOURNEY_DRAFT_KEY,
-      JSON.stringify({
-        version: 1,
-        step: 3,
-        values: { ...testGenerationResult.preferences, interests: [] },
-      }),
-    )
+    await saveJourneyDraft(3, {
+      ...testGenerationResult.preferences,
+      interests: [],
+    })
     const user = userEvent.setup()
     renderRoute('/create')
+    await screen.findByText('已恢复未提交草稿')
 
     for (const interest of ['建筑细节', '城市声音', '街区历史', '光影观察']) {
       await user.click(screen.getByLabelText(interest))
@@ -79,11 +68,11 @@ describe('创建行程表单', () => {
     expect(screen.getByText('已选择 4 / 4')).toBeInTheDocument()
   })
 
-  it('恢复未提交草稿并保留所在步骤', () => {
-    saveDraft(4)
+  it('恢复未提交草稿并保留所在步骤', async () => {
+    await saveDraft(4)
     renderRoute('/create')
 
-    expect(screen.getByText('已恢复未提交草稿')).toBeInTheDocument()
+    expect(await screen.findByText('已恢复未提交草稿')).toBeInTheDocument()
     expect(
       screen.getByRole('heading', { name: '选择剧情类型' }),
     ).toBeInTheDocument()
@@ -91,7 +80,7 @@ describe('创建行程表单', () => {
   })
 
   it('重复点击只提交一次生成任务', async () => {
-    saveDraft(7)
+    await saveDraft(7)
     vi.stubGlobal(
       'fetch',
       vi.fn(
@@ -101,22 +90,20 @@ describe('创建行程表单', () => {
           }),
       ),
     )
-    const storageSpy = vi.spyOn(Storage.prototype, 'setItem')
+    const fetchMock = vi.mocked(fetch)
     const user = userEvent.setup()
     renderRoute('/create')
 
-    await user.dblClick(screen.getByRole('button', { name: /生成故事/ }))
+    await user.dblClick(await screen.findByRole('button', { name: /生成故事/ }))
 
-    const pendingWrites = storageSpy.mock.calls.filter(
-      ([key]) => key === PENDING_GENERATION_KEY,
-    )
-    expect(pendingWrites).toHaveLength(1)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(await db.draftPreferences.get('pending')).toBeTruthy()
   })
 })
 
 describe('生成请求与预览保护', () => {
   it('生成失败后显示错误并允许重试', async () => {
-    savePendingGeneration(testGenerationResult.preferences)
+    await savePendingGeneration(testGenerationResult.preferences)
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -142,7 +129,7 @@ describe('生成请求与预览保护', () => {
   })
 
   it('使用真实两段请求并明确显示 Mock 回退', async () => {
-    savePendingGeneration(testGenerationResult.preferences)
+    await savePendingGeneration(testGenerationResult.preferences)
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -167,11 +154,11 @@ describe('生成请求与预览保护', () => {
     expect(
       screen.queryByText('这段完整剧情不应出现在预览页面。'),
     ).not.toBeInTheDocument()
-    expect(window.sessionStorage.getItem(GENERATION_RESULT_KEY)).toBeTruthy()
+    expect(await loadGenerationResult('story_test')).toBeTruthy()
   })
 
   it('可以取消正在进行的请求', async () => {
-    savePendingGeneration(testGenerationResult.preferences)
+    await savePendingGeneration(testGenerationResult.preferences)
     vi.stubGlobal(
       'fetch',
       vi.fn(
@@ -202,8 +189,8 @@ describe('生成请求与预览保护', () => {
     ).toBeInTheDocument()
   })
 
-  it('合法生成结果可以进入预览', () => {
-    saveGenerationResult({
+  it('合法生成结果可以进入预览', async () => {
+    await saveGenerationResult({
       ...testGenerationResult,
       story: {
         ...testGenerationResult.story,
@@ -214,7 +201,7 @@ describe('生成请求与预览保护', () => {
     renderRoute('/story/story_test/preview')
 
     expect(
-      screen.getByRole('heading', { name: '失物电台测试档案' }),
+      await screen.findByRole('heading', { name: '失物电台测试档案' }),
     ).toBeInTheDocument()
     expect(screen.getByText('节点类型概览')).toBeInTheDocument()
     expect(screen.getByText('任务类型概览')).toBeInTheDocument()

@@ -3,6 +3,7 @@ import express, { type Express, type RequestHandler } from 'express'
 import helmet from 'helmet'
 import { nanoid } from 'nanoid'
 import {
+  AnonymousEventRequestSchema,
   FeedbackRequestSchema,
   GenerateStoryRequestSchema,
   GenerateStoryResponseSchema,
@@ -13,6 +14,7 @@ import {
   RerouteRequestSchema,
   RerouteResponseSchema,
   RoutePlanningError,
+  StoryCompletionSyncRequestSchema,
 } from '@citywalk/shared'
 import {
   AiClientError,
@@ -408,6 +410,48 @@ export const createApp = (
         createdAt: dependencies.now().toISOString(),
       })
       response.status(201).json({ feedbackId, accepted: true })
+    }),
+  )
+
+  app.post(
+    '/v1/events',
+    validateBody(AnonymousEventRequestSchema),
+    asyncHandler(async (request, response) => {
+      await repositories.telemetry.record({
+        id: nanoid(),
+        eventName: request.body.eventName,
+        requestId: String(response.locals.requestId),
+        clientIdHash: String(response.locals.clientIdHash),
+        properties: request.body.properties,
+        createdAt: request.body.occurredAt,
+      })
+      response.status(202).json({ accepted: true })
+    }),
+  )
+
+  app.post(
+    '/v1/stories/:storyId/completion',
+    validateBody(StoryCompletionSyncRequestSchema),
+    asyncHandler(async (request, response) => {
+      if (request.params.storyId !== request.body.storyId) {
+        throw new HttpError({
+          statusCode: 400,
+          code: 'VALIDATION_ERROR',
+          message: 'Story id does not match the request path',
+        })
+      }
+      await repositories.telemetry.record({
+        id: nanoid(),
+        eventName: 'story_completed',
+        requestId: String(response.locals.requestId),
+        clientIdHash: String(response.locals.clientIdHash),
+        properties: {
+          storyId: request.body.storyId,
+          endingId: request.body.endingId ?? 'incomplete',
+        },
+        createdAt: request.body.completedAt,
+      })
+      response.status(202).json({ accepted: true })
     }),
   )
 

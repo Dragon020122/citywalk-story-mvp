@@ -9,6 +9,7 @@ import type {
 } from '@citywalk/shared'
 import { useMemo, useState } from 'react'
 import { Button } from '../components/Button'
+import { saveLocalPhoto } from '../persistence/photo-storage'
 
 export interface TaskCompletion {
   journalText?: string
@@ -17,7 +18,9 @@ export interface TaskCompletion {
 
 interface TaskProps<T> {
   task: T
-  onComplete: (completion?: TaskCompletion) => void
+  storyId?: string
+  nodeId?: string
+  onComplete: (completion?: TaskCompletion) => void | Promise<void>
 }
 
 export function ObserveTask({ task, onComplete }: TaskProps<ObserveTaskData>) {
@@ -52,11 +55,51 @@ export function ObserveTask({ task, onComplete }: TaskProps<ObserveTaskData>) {
   )
 }
 
-export function PhotoTask({ task, onComplete }: TaskProps<PhotoTaskData>) {
+export function PhotoTask({
+  task,
+  storyId,
+  nodeId,
+  onComplete,
+}: TaskProps<PhotoTaskData>) {
   const [confirmed, setConfirmed] = useState(false)
+  const [file, setFile] = useState<File | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const save = async () => {
+    if (!file || !storyId || !nodeId || saving) return
+    setSaving(true)
+    setError('')
+    try {
+      const photo = await saveLocalPhoto({
+        storyId,
+        nodeId,
+        taskId: task.id,
+        file,
+      })
+      await onComplete({ localPhotoId: photo.id })
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '照片保存失败。')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="task-body">
       <p>{task.photoPrompt}</p>
+      <label className="task-field photo-picker">
+        <span>拍摄或选择照片</span>
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+        />
+      </label>
+      <p className="local-only-notice">
+        照片仅保存在此设备，不会上传 CloudBase。
+      </p>
       <label className="task-check">
         <input
           type="checkbox"
@@ -67,13 +110,16 @@ export function PhotoTask({ task, onComplete }: TaskProps<PhotoTaskData>) {
       </label>
       <Button
         fullWidth
-        disabled={!confirmed}
-        onClick={() =>
-          onComplete({ localPhotoId: `local_photo_${task.id}_${Date.now()}` })
-        }
+        disabled={!confirmed || !file || saving}
+        onClick={() => void save()}
       >
-        记录本地照片
+        {saving ? '正在压缩并保存…' : '保存本地照片'}
       </Button>
+      {error && (
+        <p className="field-error" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   )
 }
@@ -282,12 +328,24 @@ export function CompanionTask({
   )
 }
 
-export function TaskRenderer({ task, onComplete }: TaskProps<Task>) {
+export function TaskRenderer({
+  task,
+  storyId,
+  nodeId,
+  onComplete,
+}: TaskProps<Task>) {
   switch (task.type) {
     case 'observe':
       return <ObserveTask task={task} onComplete={onComplete} />
     case 'photo':
-      return <PhotoTask task={task} onComplete={onComplete} />
+      return (
+        <PhotoTask
+          task={task}
+          {...(storyId ? { storyId } : {})}
+          {...(nodeId ? { nodeId } : {})}
+          onComplete={onComplete}
+        />
+      )
     case 'puzzle':
       return <PuzzleTask task={task} onComplete={onComplete} />
     case 'soundscape':

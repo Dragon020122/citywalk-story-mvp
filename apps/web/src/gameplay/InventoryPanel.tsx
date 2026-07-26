@@ -5,14 +5,17 @@ import type {
 } from '@citywalk/shared'
 import { Card } from '../components/Card'
 import { ArchiveLabel } from '../components/Labels'
+import { PhotoGallery } from '../persistence/PhotoGallery'
 
 interface InventoryPanelProps {
+  storyId: string
   blueprint: StoryBlueprint
   graph: StoryGraph
   runtime: StoryRuntimeState
 }
 
 export function InventoryPanel({
+  storyId,
   blueprint,
   graph,
   runtime,
@@ -100,6 +103,7 @@ export function InventoryPanel({
           ))}
         </div>
       )}
+      <PhotoGallery storyId={storyId} />
     </section>
   )
 }

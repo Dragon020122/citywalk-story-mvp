@@ -5,12 +5,9 @@ import { Card } from '../components/Card'
 import { ArchiveLabel, Chip, StatusBadge } from '../components/Labels'
 import { PageShell } from '../components/PageShell'
 import { genreOptions } from '../journey-options'
-import {
-  clearGenerationResult,
-  loadGenerationResult,
-  savePendingGeneration,
-} from '../journey-storage'
+import { savePendingGeneration } from '../journey-storage'
 import { RouteMap } from '../maps/RouteMap'
+import { useStoredStory } from '../persistence/hooks'
 
 const nodeTypeLabels: Record<string, string> = {
   intro: '开场',
@@ -145,22 +142,30 @@ function DemoPreview() {
 export function PreviewPage() {
   const navigate = useNavigate()
   const { storyId } = useParams()
-  const result = loadGenerationResult()
+  const result = useStoredStory(storyId)
   const demo = storyId === 'mock_demo_007'
 
+  if (!demo && result === undefined) {
+    return (
+      <PageShell title="故事预览" eyebrow="LOCAL DATABASE">
+        <Card>
+          <h2>正在恢复故事</h2>
+          <p>正在从此设备读取离线剧情与路线。</p>
+        </Card>
+      </PageShell>
+    )
+  }
   if (!demo && (!result || result.story.blueprint.storyId !== storyId)) {
     return <Navigate to="/create" replace />
   }
 
-  const regenerate = () => {
+  const regenerate = async () => {
     if (!result) return
-    savePendingGeneration(result.preferences)
-    clearGenerationResult()
+    await savePendingGeneration(result.preferences)
     navigate('/generating', { replace: true })
   }
 
   const changeRoute = () => {
-    clearGenerationResult()
     navigate('/create')
   }
 
@@ -262,7 +267,7 @@ export function PreviewPage() {
               <Button variant="secondary" onClick={changeRoute}>
                 更换路线
               </Button>
-              <Button variant="quiet" onClick={regenerate}>
+              <Button variant="quiet" onClick={() => void regenerate()}>
                 <RotateCcw aria-hidden="true" />
                 重新生成剧情
               </Button>

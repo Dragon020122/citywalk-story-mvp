@@ -20,7 +20,7 @@ describe('应用路由', () => {
     ['/create', '建立漫游档案'],
     ['/generating', '正在编档'],
     ['/story/mock_demo_007/preview', '故事预览'],
-    ['/story/mock_test/play', '建立漫游档案'],
+    ['/story/mock_test/play', '恢复离线档案'],
     ['/story/mock_test/inventory', '随身档案'],
     ['/story/mock_test/journal', '漫游手记'],
     ['/story/mock_test/result', '档案结案'],

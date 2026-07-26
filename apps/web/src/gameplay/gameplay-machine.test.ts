@@ -7,7 +7,7 @@ import {
   type StoryNode,
 } from '@citywalk/shared'
 import { createActor } from 'xstate'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { createGameplayMachine } from './gameplay-machine'
 import { loadGameplay, saveGameplay } from './gameplay-storage'
 
@@ -143,8 +143,6 @@ function arriveAndRead(actor: ReturnType<typeof createActor>) {
 }
 
 describe('互动剧情 XState 引擎', () => {
-  beforeEach(() => window.localStorage.clear())
-
   it('按事件依次通过顶层节点流程', () => {
     const actor = createActor(createGameplayMachine(createGraph())).start()
     expect(actor.getSnapshot().value).toBe('idle')
@@ -231,35 +229,35 @@ describe('互动剧情 XState 引擎', () => {
     expect(resolveEnding(graph, runtime).id).toBe('ending_hidden')
   })
 
-  it('刷新后通过共享 Schema 恢复准确状态', () => {
+  it('刷新后通过共享 Schema 恢复准确状态', async () => {
     const graph = createGraph()
     const runtime = applyChoiceEffects(
       createInitialRuntimeState(graph),
       graph.nodes[0]!,
       graph.nodes[0]!.choices[0]!,
     )
-    saveGameplay('story_restore', 'choosing', runtime)
-    expect(loadGameplay('story_restore', graph)).toEqual({
+    await saveGameplay('story_restore', 'choosing', runtime)
+    await expect(loadGameplay('story_restore', graph)).resolves.toEqual({
       state: 'choosing',
       resumeState: 'navigating',
       runtime,
     })
   })
 
-  it('暂停状态刷新后仍恢复到暂停前的精确阶段', () => {
+  it('暂停状态刷新后仍恢复到暂停前的精确阶段', async () => {
     const graph = createGraph()
     const actor = createActor(createGameplayMachine(graph)).start()
     arriveAndRead(actor)
     actor.send({ type: 'PAUSE', from: 'tasking' })
     const paused = actor.getSnapshot()
-    saveGameplay(
+    await saveGameplay(
       'story_paused',
       'paused',
       paused.context.runtime,
       paused.context.resumeState,
     )
 
-    const restored = loadGameplay('story_paused', graph)!
+    const restored = (await loadGameplay('story_paused', graph))!
     const resumedActor = createActor(
       createGameplayMachine(
         graph,

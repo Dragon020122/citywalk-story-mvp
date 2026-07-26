@@ -10,20 +10,26 @@ import {
   XCircle,
 } from 'lucide-react'
 import { Link, Navigate, useParams } from 'react-router-dom'
-import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
 import { rerouteJourney } from '../api-client'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
 import { ArchiveLabel, StatusBadge } from '../components/Labels'
 import { PageShell } from '../components/PageShell'
+import { OfflineBanner } from '../components/States'
 import { Toast } from '../components/Toast'
 import { InventoryPanel } from '../gameplay/InventoryPanel'
 import { TaskRenderer } from '../gameplay/TaskComponents'
 import { useGameplay } from '../gameplay/use-gameplay'
+import type { RestoredGameplay } from '../gameplay/gameplay-storage'
 import type { ResumeState } from '../gameplay/gameplay-machine'
-import { loadGenerationResult, saveGenerationResult } from '../journey-storage'
+import {
+  loadGenerationResult,
+  saveGenerationResult,
+  type GenerationResult,
+} from '../journey-storage'
 import { copyPoiAddress, openTencentNavigation } from '../maps/navigation'
 import { RouteMap } from '../maps/RouteMap'
+import { useStoredGameplay } from '../persistence/hooks'
 
 const stateLabels = {
   idle: '尚未开始',
@@ -49,11 +55,30 @@ const unavailableReasons = [
 
 export function PlayPage() {
   const { storyId } = useParams()
-  const initialResult = loadGenerationResult()
-  const [result, setResult] = useState(initialResult)
-  const [navigationMessage, setNavigationMessage] = useState('')
-  const rerouteController = useRef<AbortController | null>(null)
+  const [result, setResult] = useState<GenerationResult | null | undefined>(
+    undefined,
+  )
+  useEffect(() => {
+    let active = true
+    void loadGenerationResult(storyId).then((stored) => {
+      if (active) setResult(stored)
+    })
+    return () => {
+      active = false
+    }
+  }, [storyId])
+  const restored = useStoredGameplay(storyId, result?.story.storyGraph)
 
+  if (result === undefined || restored === undefined) {
+    return (
+      <PageShell title="恢复离线档案" eyebrow="LOCAL DATABASE">
+        <Card>
+          <h2>正在读取此设备上的故事</h2>
+          <p>路线、剧情与运行状态正在从 IndexedDB 恢复。</p>
+        </Card>
+      </PageShell>
+    )
+  }
   if (!result || !storyId || result.story.blueprint.storyId !== storyId) {
     return <Navigate to="/create" replace />
   }
@@ -62,35 +87,31 @@ export function PlayPage() {
     <GameplayScreen
       key={storyId}
       storyId={storyId}
-      result={result}
-      setResult={setResult}
-      navigationMessage={navigationMessage}
-      setNavigationMessage={setNavigationMessage}
-      rerouteController={rerouteController}
+      initialResult={result}
+      restored={restored}
     />
   )
 }
 
 interface GameplayScreenProps {
   storyId: string
-  result: NonNullable<ReturnType<typeof loadGenerationResult>>
-  setResult: Dispatch<SetStateAction<ReturnType<typeof loadGenerationResult>>>
-  navigationMessage: string
-  setNavigationMessage: (message: string) => void
-  rerouteController: MutableRefObject<AbortController | null>
+  initialResult: GenerationResult
+  restored: RestoredGameplay | null
 }
 
 function GameplayScreen({
   storyId,
-  result,
-  setResult,
-  navigationMessage,
-  setNavigationMessage,
-  rerouteController,
+  initialResult,
+  restored,
 }: GameplayScreenProps) {
+  const [result, setResult] = useState(initialResult)
+  const [navigationMessage, setNavigationMessage] = useState('')
+  const [online, setOnline] = useState(() => navigator.onLine)
+  const rerouteController = useRef<AbortController | null>(null)
   const { state, graph, runtime, send } = useGameplay(
     storyId,
     result.story.storyGraph,
+    restored,
   )
   const currentNode = graph.nodes.find(
     (node) => node.id === runtime.currentNodeId,
@@ -124,14 +145,14 @@ function GameplayScreen({
         controller.signal,
       )
     },
-    onSuccess: (rerouted) => {
+    onSuccess: async (rerouted) => {
       const updated = {
         ...result,
         routePlan: rerouted.routePlan,
         story: { ...result.story, storyGraph: rerouted.storyGraph },
         savedAt: new Date().toISOString(),
       }
-      saveGenerationResult(updated)
+      await saveGenerationResult(updated)
       setResult(updated)
       send({ type: 'REROUTE_SUCCESS', graph: rerouted.storyGraph })
     },
@@ -147,8 +168,19 @@ function GameplayScreen({
     () => () => {
       rerouteController.current?.abort()
     },
-    [rerouteController],
+    [],
   )
+
+  useEffect(() => {
+    const goOnline = () => setOnline(true)
+    const goOffline = () => setOnline(false)
+    window.addEventListener('online', goOnline)
+    window.addEventListener('offline', goOffline)
+    return () => {
+      window.removeEventListener('online', goOnline)
+      window.removeEventListener('offline', goOffline)
+    }
+  }, [])
 
   useEffect(() => {
     if (!currentNode || !currentPoi) {
@@ -199,6 +231,7 @@ function GameplayScreen({
       title="漫游执行引擎"
       eyebrow={`${stateLabels[state]} · ${completedCount}/${graph.nodes.length}`}
     >
+      {!online && <OfflineBanner />}
       <div className="play-route-heading">
         <ArchiveLabel>{storyId}</ArchiveLabel>
         <StatusBadge
@@ -287,6 +320,8 @@ function GameplayScreen({
           <h2>完成现场任务</h2>
           <TaskRenderer
             task={currentNode.task}
+            storyId={storyId}
+            nodeId={currentNode.id}
             onComplete={(completion) =>
               send({ type: 'COMPLETE_TASK', ...completion })
             }
@@ -449,6 +484,7 @@ function GameplayScreen({
       )}
 
       <InventoryPanel
+        storyId={storyId}
         blueprint={result.story.blueprint}
         graph={graph}
         runtime={runtime}

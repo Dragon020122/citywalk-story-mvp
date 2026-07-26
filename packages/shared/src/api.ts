@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { NonEmptyStringSchema } from './common.js'
+import { IsoDateTimeSchema, NonEmptyStringSchema } from './common.js'
 import { JourneyPreferencesSchema } from './journey.js'
 import { RoutePlanSchema } from './route.js'
 import { StoryRunSchema } from './run.js'
@@ -115,3 +115,19 @@ export const FeedbackRequestSchema = z.object({
     .optional(),
 })
 export type FeedbackRequest = z.infer<typeof FeedbackRequestSchema>
+
+export const AnonymousEventRequestSchema = z.object({
+  eventName: NonEmptyStringSchema.max(80),
+  occurredAt: IsoDateTimeSchema,
+  properties: z.record(NonEmptyStringSchema, FlagValueSchema).default({}),
+})
+export type AnonymousEventRequest = z.infer<typeof AnonymousEventRequestSchema>
+
+export const StoryCompletionSyncRequestSchema = z.object({
+  storyId: NonEmptyStringSchema,
+  endingId: NonEmptyStringSchema.nullable(),
+  completedAt: IsoDateTimeSchema,
+})
+export type StoryCompletionSyncRequest = z.infer<
+  typeof StoryCompletionSyncRequestSchema
+>

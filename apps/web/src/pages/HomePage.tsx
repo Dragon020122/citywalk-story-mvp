@@ -7,16 +7,21 @@ import { Drawer } from '../components/Drawer'
 import { ProgressBar } from '../components/ProgressBar'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { Skeleton } from '../components/Skeleton'
-import { mockApi, type MockRoutePack, type MockStory } from '../mock-api'
+import { mockApi, type MockRoutePack } from '../mock-api'
+import { useStoryHistory } from '../persistence/hooks'
 
 interface HomeData {
   routePacks: MockRoutePack[]
-  recentStory: MockStory
 }
 
 export function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [homeData, setHomeData] = useState<HomeData | null>(null)
+  const history = useStoryHistory()
+  const recent = history?.find(
+    ({ record }) =>
+      record.status === 'ready' || record.status === 'in_progress',
+  )
 
   useEffect(() => {
     let active = true
@@ -63,29 +68,31 @@ export function HomePage() {
               历史记录
             </Link>
           </div>
-          {homeData ? (
+          {recent ? (
             <Card className="continue-card">
               <div className="continue-card__top">
-                <ArchiveLabel>CASE 017</ArchiveLabel>
+                <ArchiveLabel>{recent.record.id}</ArchiveLabel>
                 <StatusBadge tone="warning">进行中</StatusBadge>
               </div>
-              <h3>{homeData.recentStory.title}</h3>
-              <p>{homeData.recentStory.currentChapter}</p>
-              <ProgressBar
-                value={homeData.recentStory.progress}
-                label="故事进度"
-              />
+              <h3>{recent.record.title}</h3>
+              <p>运行状态已保存在此设备，可离线继续。</p>
+              <ProgressBar value={25} label="故事进度" />
               <Link
                 className="button button--secondary button--full"
-                to={`/story/${homeData.recentStory.id}/play`}
+                to={`/story/${recent.record.id}/play`}
               >
                 <Play aria-hidden="true" />
                 继续漫游
               </Link>
             </Card>
-          ) : (
+          ) : history === undefined ? (
             <Card>
               <Skeleton lines={4} />
+            </Card>
+          ) : (
+            <Card>
+              <h3>还没有未完成的漫游</h3>
+              <p>生成故事后，可从这里或历史记录继续。</p>
             </Card>
           )}
         </section>

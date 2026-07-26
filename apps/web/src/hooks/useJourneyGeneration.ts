@@ -51,7 +51,7 @@ export function useJourneyGeneration({
 
   const start = useCallback(async () => {
     if (runningRef.current) return
-    const preferences = loadPendingGeneration()
+    const preferences = await loadPendingGeneration()
     if (!preferences) {
       setStatus('missing')
       setErrorMessage('没有找到待生成的行程设置，请先完成创建表单。')
@@ -90,7 +90,7 @@ export function useJourneyGeneration({
       setStage(4)
 
       setStage(5)
-      saveGenerationResult({
+      await saveGenerationResult({
         preferences,
         routePlan,
         story,

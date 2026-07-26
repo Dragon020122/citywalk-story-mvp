@@ -8,10 +8,16 @@ import {
   type RoutePlan,
 } from '@citywalk/shared'
 import { z } from 'zod'
+import {
+  db,
+  deleteStoryCascade,
+  quarantineRecord,
+  trimStoryHistory,
+  type StoryRecord,
+} from './persistence/database'
 
-export const JOURNEY_DRAFT_KEY = 'citywalk.journey-draft.v1'
-export const PENDING_GENERATION_KEY = 'citywalk.pending-generation.v1'
-export const GENERATION_RESULT_KEY = 'citywalk.generation-result.v1'
+export const JOURNEY_DRAFT_ID = 'draft'
+export const PENDING_GENERATION_ID = 'pending'
 
 const DraftValuesSchema = JourneyPreferencesSchema.partial().extend({
   routePackId: z.string().optional(),
@@ -19,12 +25,11 @@ const DraftValuesSchema = JourneyPreferencesSchema.partial().extend({
 })
 
 const JourneyDraftSchema = z.object({
-  version: z.literal(1),
   step: z.number().int().min(0).max(7),
   values: DraftValuesSchema,
 })
 
-const GenerationResultSchema = z.object({
+export const GenerationResultSchema = z.object({
   preferences: JourneyPreferencesSchema,
   routePlan: RoutePlanSchema,
   story: GenerateStoryResponseSchema,
@@ -43,22 +48,22 @@ export interface GenerationResult {
   savedAt: string
 }
 
-function readJson(storage: Storage, key: string): unknown {
-  const value = storage.getItem(key)
-  if (!value) return null
-  try {
-    return JSON.parse(value)
-  } catch {
-    storage.removeItem(key)
+export async function loadJourneyDraft(): Promise<JourneyDraft | null> {
+  const record = await db.draftPreferences.get(JOURNEY_DRAFT_ID)
+  if (!record) return null
+  const parsed = JourneyDraftSchema.safeParse({
+    step: record.step,
+    values: record.values,
+  })
+  if (!parsed.success) {
+    await quarantineRecord({
+      table: 'draftPreferences',
+      key: record.id,
+      raw: record,
+      error: parsed.error.message,
+    })
     return null
   }
-}
-
-export function loadJourneyDraft(): JourneyDraft | null {
-  const parsed = JourneyDraftSchema.safeParse(
-    readJson(window.localStorage, JOURNEY_DRAFT_KEY),
-  )
-  if (!parsed.success) return null
   const values = Object.fromEntries(
     Object.entries(parsed.data.values).filter(
       ([, value]) => value !== undefined,
@@ -67,45 +72,110 @@ export function loadJourneyDraft(): JourneyDraft | null {
   return { step: parsed.data.step, values }
 }
 
-export function saveJourneyDraft(
+export async function saveJourneyDraft(
   step: number,
   values: Partial<JourneyPreferencesInput>,
 ) {
-  window.localStorage.setItem(
-    JOURNEY_DRAFT_KEY,
-    JSON.stringify({ version: 1, step, values }),
-  )
+  const parsed = JourneyDraftSchema.parse({ step, values })
+  await db.draftPreferences.put({
+    id: JOURNEY_DRAFT_ID,
+    step: parsed.step,
+    values: parsed.values,
+    updatedAt: new Date().toISOString(),
+  })
 }
 
-export function clearJourneyDraft() {
-  window.localStorage.removeItem(JOURNEY_DRAFT_KEY)
+export async function clearJourneyDraft() {
+  await db.draftPreferences.delete(JOURNEY_DRAFT_ID)
 }
 
-export function savePendingGeneration(preferences: JourneyPreferences) {
-  window.sessionStorage.setItem(
-    PENDING_GENERATION_KEY,
-    JSON.stringify(preferences),
-  )
+export async function savePendingGeneration(preferences: JourneyPreferences) {
+  const parsed = JourneyPreferencesSchema.parse(preferences)
+  await db.draftPreferences.put({
+    id: PENDING_GENERATION_ID,
+    step: null,
+    values: parsed,
+    updatedAt: new Date().toISOString(),
+  })
 }
 
-export function loadPendingGeneration(): JourneyPreferences | null {
-  const parsed = JourneyPreferencesSchema.safeParse(
-    readJson(window.sessionStorage, PENDING_GENERATION_KEY),
-  )
-  return parsed.success ? parsed.data : null
+export async function loadPendingGeneration(): Promise<JourneyPreferences | null> {
+  const record = await db.draftPreferences.get(PENDING_GENERATION_ID)
+  if (!record) return null
+  const parsed = JourneyPreferencesSchema.safeParse(record.values)
+  if (!parsed.success) {
+    await quarantineRecord({
+      table: 'draftPreferences',
+      key: record.id,
+      raw: record,
+      error: parsed.error.message,
+    })
+    return null
+  }
+  return parsed.data
 }
 
-export function saveGenerationResult(result: GenerationResult) {
-  window.sessionStorage.setItem(GENERATION_RESULT_KEY, JSON.stringify(result))
+function toStoryRecord(result: GenerationResult): StoryRecord {
+  const storyId = result.story.blueprint.storyId
+  return {
+    id: storyId,
+    title: result.story.blueprint.title,
+    status: 'ready',
+    createdAt: result.savedAt,
+    updatedAt: result.savedAt,
+    completedAt: null,
+    generation: GenerationResultSchema.parse(result),
+  }
 }
 
-export function loadGenerationResult(): GenerationResult | null {
-  const parsed = GenerationResultSchema.safeParse(
-    readJson(window.sessionStorage, GENERATION_RESULT_KEY),
-  )
-  return parsed.success ? parsed.data : null
+export async function saveGenerationResult(result: GenerationResult) {
+  await db.stories.put(toStoryRecord(result))
+  await trimStoryHistory(5)
 }
 
-export function clearGenerationResult() {
-  window.sessionStorage.removeItem(GENERATION_RESULT_KEY)
+export async function loadGenerationResult(
+  storyId?: string,
+): Promise<GenerationResult | null> {
+  const record = storyId
+    ? await db.stories.get(storyId)
+    : await db.stories.orderBy('updatedAt').last()
+  if (!record) return null
+  const parsed = GenerationResultSchema.safeParse(record.generation)
+  if (!parsed.success || parsed.data.story.blueprint.storyId !== record.id) {
+    await quarantineRecord({
+      table: 'stories',
+      key: record.id,
+      raw: record,
+      error: parsed.success
+        ? 'Story id does not match the generation payload'
+        : parsed.error.message,
+    })
+    return null
+  }
+  return parsed.data
+}
+
+export async function listGenerationResults(): Promise<
+  Array<{ record: StoryRecord; result: GenerationResult }>
+> {
+  const records = await db.stories.orderBy('updatedAt').reverse().toArray()
+  const results: Array<{ record: StoryRecord; result: GenerationResult }> = []
+  for (const record of records) {
+    const parsed = GenerationResultSchema.safeParse(record.generation)
+    if (parsed.success && parsed.data.story.blueprint.storyId === record.id) {
+      results.push({ record, result: parsed.data })
+    } else {
+      await quarantineRecord({
+        table: 'stories',
+        key: record.id,
+        raw: record,
+        error: parsed.success ? 'Story id mismatch' : parsed.error.message,
+      })
+    }
+  }
+  return results
+}
+
+export async function clearGenerationResult(storyId?: string) {
+  if (storyId) await deleteStoryCascade(storyId)
 }

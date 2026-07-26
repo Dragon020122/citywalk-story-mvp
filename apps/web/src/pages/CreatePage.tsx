@@ -11,7 +11,6 @@ import { JourneyStepFields } from '../components/JourneyStepFields'
 import { PageShell } from '../components/PageShell'
 import { ProgressBar } from '../components/ProgressBar'
 import {
-  clearGenerationResult,
   clearJourneyDraft,
   loadJourneyDraft,
   saveJourneyDraft,
@@ -63,23 +62,39 @@ const baseDefaults: JourneyPreferencesInput = {
 
 export function CreatePage() {
   const navigate = useNavigate()
-  const restoredDraft = useRef(loadJourneyDraft()).current
   const submitLock = useRef(false)
-  const [step, setStep] = useState(restoredDraft?.step ?? 0)
-  const [restored, setRestored] = useState(Boolean(restoredDraft))
+  const [step, setStep] = useState(0)
+  const [restored, setRestored] = useState(false)
+  const [hydrated, setHydrated] = useState(false)
   const form = useForm<JourneyPreferencesInput>({
     resolver: journeyResolver,
     mode: 'onTouched',
-    defaultValues: { ...baseDefaults, ...restoredDraft?.values },
+    defaultValues: baseDefaults,
   })
   const values = useWatch({ control: form.control }) as JourneyPreferencesInput
 
   useEffect(() => {
-    saveJourneyDraft(step, values)
-  }, [step, values])
+    let active = true
+    void loadJourneyDraft().then((draft) => {
+      if (!active) return
+      if (draft) {
+        form.reset({ ...baseDefaults, ...draft.values })
+        setStep(draft.step)
+        setRestored(true)
+      }
+      setHydrated(true)
+    })
+    return () => {
+      active = false
+    }
+  }, [form])
+
+  useEffect(() => {
+    if (hydrated) void saveJourneyDraft(step, values)
+  }, [hydrated, step, values])
 
   const resetDraft = () => {
-    clearJourneyDraft()
+    void clearJourneyDraft()
     form.reset(baseDefaults)
     setStep(0)
     setRestored(false)
@@ -92,13 +107,12 @@ export function CreatePage() {
     if (valid) setStep((current) => Math.min(current + 1, 7))
   }
 
-  const submit = form.handleSubmit((input) => {
+  const submit = form.handleSubmit(async (input) => {
     if (submitLock.current) return
     submitLock.current = true
     const preferences = JourneyPreferencesSchema.parse(input)
-    savePendingGeneration(preferences)
-    clearGenerationResult()
-    clearJourneyDraft()
+    await savePendingGeneration(preferences)
+    await clearJourneyDraft()
     navigate('/generating')
   })
 

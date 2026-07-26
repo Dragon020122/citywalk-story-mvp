@@ -212,4 +212,25 @@ describe('CloudBase HTTP API foundation', () => {
     expect(response.status).toBe(201)
     expect(response.body.accepted).toBe(true)
   })
+
+  it('accepts queued anonymous events and story completion status', async () => {
+    const app = createApp(createTestDependencies())
+    const eventResponse = await supertest(app)
+      .post('/v1/events')
+      .send({
+        eventName: 'offline_open',
+        occurredAt: fixedNow.toISOString(),
+        properties: { cachedStories: 2 },
+      })
+    const completionResponse = await supertest(app)
+      .post('/v1/stories/story-test/completion')
+      .send({
+        storyId: 'story-test',
+        endingId: 'ending-test',
+        completedAt: fixedNow.toISOString(),
+      })
+
+    expect(eventResponse.status).toBe(202)
+    expect(completionResponse.status).toBe(202)
+  })
 })

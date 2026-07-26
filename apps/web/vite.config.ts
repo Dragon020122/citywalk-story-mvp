@@ -44,7 +44,11 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/v1\//],
         globPatterns: ['**/*.{js,css,html,svg}'],
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
         runtimeCaching: [
           {
             urlPattern: ({ request }) => request.mode === 'navigate',

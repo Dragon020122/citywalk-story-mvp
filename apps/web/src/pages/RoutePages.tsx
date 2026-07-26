@@ -1,7 +1,12 @@
-import { useState, type PropsWithChildren, type ReactNode } from 'react'
+import {
+  useEffect,
+  useState,
+  type PropsWithChildren,
+  type ReactNode,
+} from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import {
   ArrowRight,
-  BookOpen,
   Check,
   Download,
   RotateCcw,
@@ -9,7 +14,7 @@ import {
   Signal,
   WifiOff,
 } from 'lucide-react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { BottomActionBar } from '../components/BottomActionBar'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
@@ -21,8 +26,13 @@ import { ScreenHeader } from '../components/ScreenHeader'
 import { EmptyState, ErrorState, OfflineBanner } from '../components/States'
 import { Toast } from '../components/Toast'
 import { InventoryPanel } from '../gameplay/InventoryPanel'
-import { loadGameplay } from '../gameplay/gameplay-storage'
-import { loadGenerationResult } from '../journey-storage'
+import { savePendingGeneration } from '../journey-storage'
+import {
+  useStoredGameplay,
+  useStoredStory,
+  useStoryHistory,
+} from '../persistence/hooks'
+import { db, deleteStoryCascade } from '../persistence/database'
 
 interface PageShellProps extends PropsWithChildren {
   title: string
@@ -199,17 +209,15 @@ export function PlayPage() {
 
 export function InventoryPage() {
   const { storyId = '' } = useParams()
-  const result = loadGenerationResult()
-  const restored =
-    result && result.story.blueprint.storyId === storyId
-      ? loadGameplay(storyId, result.story.storyGraph)
-      : null
+  const result = useStoredStory(storyId)
+  const restored = useStoredGameplay(storyId, result?.story.storyGraph)
 
   return (
     <PageShell title="随身档案" eyebrow="INVENTORY">
       <StoryIdLabel />
       {result && restored ? (
         <InventoryPanel
+          storyId={storyId}
           blueprint={result.story.blueprint}
           graph={result.story.storyGraph}
           runtime={restored.runtime}
@@ -226,11 +234,8 @@ export function InventoryPage() {
 
 export function JournalPage() {
   const { storyId = '' } = useParams()
-  const result = loadGenerationResult()
-  const restored =
-    result && result.story.blueprint.storyId === storyId
-      ? loadGameplay(storyId, result.story.storyGraph)
-      : null
+  const result = useStoredStory(storyId)
+  const restored = useStoredGameplay(storyId, result?.story.storyGraph)
 
   return (
     <PageShell title="漫游手记" eyebrow="JOURNAL">
@@ -258,11 +263,8 @@ export function JournalPage() {
 
 export function ResultPage() {
   const { storyId = '' } = useParams()
-  const result = loadGenerationResult()
-  const restored =
-    result && result.story.blueprint.storyId === storyId
-      ? loadGameplay(storyId, result.story.storyGraph)
-      : null
+  const result = useStoredStory(storyId)
+  const restored = useStoredGameplay(storyId, result?.story.storyGraph)
 
   return (
     <PageShell title="档案结案" eyebrow="RESULT">
@@ -287,24 +289,86 @@ export function ResultPage() {
 }
 
 export function HistoryPage() {
+  const navigate = useNavigate()
+  const history = useStoryHistory()
+  const corruptRecords = useLiveQuery(() => db.corruptRecords.toArray(), [])
+
+  const reuse = async (
+    preferences: NonNullable<typeof history>[number]['result']['preferences'],
+  ) => {
+    await savePendingGeneration(preferences)
+    navigate('/generating')
+  }
+
   return (
     <PageShell title="历史记录" eyebrow="ARCHIVE INDEX">
-      <Card className="history-row">
-        <ArchiveLabel>CASE 017</ArchiveLabel>
-        <div>
-          <h2>梧桐区失物电台</h2>
-          <p className="muted">进行中 · 今天 18:40</p>
-        </div>
-        <BookOpen aria-hidden="true" />
-      </Card>
-      <Card className="history-row">
-        <ArchiveLabel>CASE 006</ArchiveLabel>
-        <div>
-          <h2>晚风保管处</h2>
-          <p className="muted">已结案 · 7 月 19 日</p>
-        </div>
-        <Check aria-hidden="true" />
-      </Card>
+      {corruptRecords?.map((record) => (
+        <Card className="state-card state-card--error" key={record.id}>
+          <h2>有一条本地记录已损坏</h2>
+          <p>记录已隔离，不会影响应用启动。你可以清理这条隔离记录。</p>
+          <Button
+            variant="secondary"
+            onClick={() =>
+              record.id === undefined
+                ? undefined
+                : void db.corruptRecords.delete(record.id)
+            }
+          >
+            清理该条记录
+          </Button>
+        </Card>
+      ))}
+      {history?.map(({ record, result }) => (
+        <Card className="history-record" key={record.id}>
+          <div className="history-record__heading">
+            <ArchiveLabel>{record.id}</ArchiveLabel>
+            <StatusBadge
+              tone={record.status === 'completed' ? 'success' : 'warning'}
+            >
+              {record.status === 'completed' ? '已完成' : '可继续'}
+            </StatusBadge>
+          </div>
+          <h2>{record.title}</h2>
+          <p className="muted">
+            更新于 {new Date(record.updatedAt).toLocaleString('zh-CN')}
+          </p>
+          <div className="history-record__actions">
+            {record.status === 'completed' ? (
+              <Link
+                className="button button--secondary"
+                to={`/story/${record.id}/result`}
+              >
+                查看结局
+              </Link>
+            ) : (
+              <Link
+                className="button button--secondary"
+                to={`/story/${record.id}/play`}
+              >
+                继续
+              </Link>
+            )}
+            <Button
+              variant="quiet"
+              onClick={() => void reuse(result.preferences)}
+            >
+              复用偏好生成
+            </Button>
+            <Button
+              variant="quiet"
+              onClick={() => void deleteStoryCascade(record.id)}
+            >
+              删除
+            </Button>
+          </div>
+        </Card>
+      ))}
+      {history?.length === 0 && (
+        <EmptyState
+          title="还没有本地历史"
+          description="生成的故事会保留最近 5 条。"
+        />
+      )}
     </PageShell>
   )
 }
@@ -312,8 +376,25 @@ export function HistoryPage() {
 export function SettingsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [toastVisible, setToastVisible] = useState(false)
+  const [safetyNotices, setSafetyNotices] = useState(true)
+  const stored = useLiveQuery(() => db.settings.get('app'), [])
 
-  const saveSettings = () => {
+  useEffect(() => {
+    if (
+      stored?.value &&
+      typeof stored.value === 'object' &&
+      'safetyNotices' in stored.value
+    ) {
+      setSafetyNotices(Boolean(stored.value.safetyNotices))
+    }
+  }, [stored])
+
+  const saveSettings = async () => {
+    await db.settings.put({
+      key: 'app',
+      value: { safetyNotices },
+      updatedAt: new Date().toISOString(),
+    })
     setModalOpen(false)
     setToastVisible(true)
     window.setTimeout(() => setToastVisible(false), 1800)
@@ -329,7 +410,12 @@ export function SettingsPage() {
             <strong>始终显示风险提示</strong>
             <small>在每个现场节点重复显示安全信息</small>
           </span>
-          <input type="checkbox" defaultChecked aria-label="始终显示风险提示" />
+          <input
+            type="checkbox"
+            checked={safetyNotices}
+            onChange={(event) => setSafetyNotices(event.target.checked)}
+            aria-label="始终显示风险提示"
+          />
         </label>
         <Button
           variant="secondary"
@@ -345,7 +431,7 @@ export function SettingsPage() {
         onClose={() => setModalOpen(false)}
       >
         <p className="muted">设置仅保存在当前设备的 Mock 环境中。</p>
-        <Button fullWidth onClick={saveSettings}>
+        <Button fullWidth onClick={() => void saveSettings()}>
           确认
         </Button>
       </Modal>
@@ -355,6 +441,15 @@ export function SettingsPage() {
 }
 
 export function OfflinePage() {
+  const counts = useLiveQuery(
+    async () => ({
+      stories: await db.stories.count(),
+      photos: await db.localPhotos.count(),
+      queued: await db.syncQueue.filter((entry) => entry.attempts < 3).count(),
+    }),
+    [],
+  )
+
   return (
     <PageShell title="离线档案" eyebrow="OFFLINE">
       <section className="center-stage">
@@ -363,7 +458,15 @@ export function OfflinePage() {
         </span>
         <ArchiveLabel>LOCAL COPY</ArchiveLabel>
         <h1>你暂时离开了网络</h1>
-        <p>已缓存的页面仍可查看；生成故事、更新路线和同步进度需要重新联网。</p>
+        <p>
+          应用外壳、故事 JSON、POI
+          基础信息和抽象路线均可离线读取；腾讯地图瓦片与在线生成不会缓存。
+        </p>
+        <div className="offline-metrics">
+          <span>{counts?.stories ?? 0} 个本地故事</span>
+          <span>{counts?.photos ?? 0} 张本地照片</span>
+          <span>{counts?.queued ?? 0} 条待同步</span>
+        </div>
         <Button variant="secondary" onClick={() => window.location.reload()}>
           <Download aria-hidden="true" />
           重新检查连接
