@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom'
 import { CreatePage } from './pages/CreatePage'
 import { GeneratingPage } from './pages/GeneratingPage'
 import { HomePage } from './pages/HomePage'
+import { PlayPage } from './pages/PlayPage'
 import { PreviewPage } from './pages/PreviewPage'
 import {
   HistoryPage,
@@ -10,7 +11,6 @@ import {
   JournalPage,
   NotFoundPage,
   OfflinePage,
-  PlayPage,
   ResultPage,
   SettingsPage,
 } from './pages/RoutePages'

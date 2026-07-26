@@ -4,8 +4,11 @@ import {
   GenerateStoryResponseSchema,
   PlanRouteRequestSchema,
   PlanRouteResponseSchema,
+  RerouteRequestSchema,
+  RerouteResponseSchema,
   type GenerateStoryResponse,
   type JourneyPreferences,
+  type RerouteResponse,
   type RoutePlan,
 } from '@citywalk/shared'
 
@@ -64,4 +67,23 @@ export async function generateJourneyStory(
   })
   const payload = await postJson('/v1/stories/generate', request, signal)
   return GenerateStoryResponseSchema.parse(payload)
+}
+
+export async function rerouteJourney(
+  input: {
+    storyId: string
+    currentPoiId: string
+    unavailablePoiIds: string[]
+    preferences: JourneyPreferences
+    routePlan: RoutePlan
+  },
+  signal: AbortSignal,
+): Promise<RerouteResponse> {
+  const request = RerouteRequestSchema.parse(input)
+  const payload = await postJson(
+    `/v1/stories/${encodeURIComponent(input.storyId)}/reroute`,
+    request,
+    signal,
+  )
+  return RerouteResponseSchema.parse(payload)
 }

@@ -18,6 +18,7 @@ export type MapRouteProviderErrorReason =
   | 'NOT_CONFIGURED'
   | 'NOT_IMPLEMENTED'
   | 'REQUEST_FAILED'
+  | 'TIMEOUT'
   | 'INVALID_RESPONSE'
 
 export class MapRouteProviderError extends Error {

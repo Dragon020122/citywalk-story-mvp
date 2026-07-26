@@ -10,6 +10,7 @@ import {
   loadGenerationResult,
   savePendingGeneration,
 } from '../journey-storage'
+import { RouteMap } from '../maps/RouteMap'
 
 const nodeTypeLabels: Record<string, string> = {
   intro: '开场',
@@ -170,9 +171,9 @@ export function PreviewPage() {
       action={
         <Link
           className="button button--primary button--full"
-          to={`/story/${storyId}/play`}
+          to={demo ? '/create' : `/story/${storyId}/play`}
         >
-          开始漫游
+          {demo ? '创建我的漫游' : '开始漫游'}
           <ArrowRight aria-hidden="true" />
         </Link>
       }
@@ -236,7 +237,11 @@ export function PreviewPage() {
                 <span>预算 ¥{result.preferences.budgetCny}</span>
               </div>
             </Card>
-            <MapPlaceholder />
+            <RouteMap
+              routePlan={result.routePlan}
+              currentPoiId={result.routePlan.selectedPois[0]?.id}
+              nextPoiId={result.routePlan.selectedPois[1]?.id}
+            />
             <OverviewSection
               nodeTypes={countLabels(
                 result.story.storyGraph.nodes.map((node) => node.type),

@@ -5,7 +5,6 @@ import {
 import { describe, expect, it } from 'vitest'
 import { MockMapRouteProvider } from './mock-map-route-provider.js'
 import { planRoute } from './plan-route.js'
-import { TencentMapRouteProvider } from './tencent-map-route-provider.js'
 
 const createFixedMockPois = (count = 12): Poi[] =>
   Array.from({ length: count }, (_, index) => ({
@@ -207,17 +206,6 @@ describe('map providers and degradation', () => {
     route.routeSegments.forEach((segment) => {
       expect(segment.source).toBe('manual')
       expect(segment.polyline).toEqual([])
-    })
-  })
-
-  it('keeps Tencent requests disabled in this stage', async () => {
-    const [from, to] = createFixedMockPois(2)
-    const provider = new TencentMapRouteProvider({ apiKey: 'test-only' })
-
-    await expect(provider.getWalkingRoute(from!, to!)).rejects.toMatchObject({
-      code: 'MAP_SERVICE_ERROR',
-      provider: 'tencent_map',
-      reason: 'NOT_IMPLEMENTED',
     })
   })
 })

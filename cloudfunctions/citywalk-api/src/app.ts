@@ -10,6 +10,8 @@ import {
   PlanRouteResponseSchema,
   RegenerateNodeRequestSchema,
   RegenerateNodeResponseSchema,
+  RerouteRequestSchema,
+  RerouteResponseSchema,
   RoutePlanningError,
 } from '@citywalk/shared'
 import {
@@ -42,6 +44,7 @@ import {
 import type { MapRouteProvider } from './route/map-route-provider.js'
 import { MockMapRouteProvider } from './route/mock-map-route-provider.js'
 import { planRoute } from './route/plan-route.js'
+import { rerouteUnavailablePoi, RerouteError } from './route/reroute.js'
 import { TencentMapRouteProvider } from './route/tencent-map-route-provider.js'
 
 const HOUR_MS = 60 * 60 * 1000
@@ -87,8 +90,9 @@ export const createDefaultDependencies = (
     logger: consoleLogger,
   })
   const mapProvider =
-    config.nodeEnvironment === 'development' ||
-    config.nodeEnvironment === 'test'
+    (config.nodeEnvironment === 'development' ||
+      config.nodeEnvironment === 'test') &&
+    !config.tencentMapServerKey
       ? new MockMapRouteProvider()
       : new TencentMapRouteProvider({
           apiKey: config.tencentMapServerKey,
@@ -337,7 +341,55 @@ export const createApp = (
   )
   app.post(
     '/v1/stories/:storyId/reroute',
-    createNotImplementedHandler('Story rerouting'),
+    validateBody(RerouteRequestSchema),
+    asyncHandler(async (request, response) => {
+      const storyId = Array.isArray(request.params.storyId)
+        ? request.params.storyId[0]
+        : request.params.storyId
+      if (!storyId || storyId !== request.body.storyId) {
+        throw new HttpError({
+          statusCode: 422,
+          code: 'VALIDATION_ERROR',
+          message: 'Story id does not match the request path',
+        })
+      }
+      const session = await repositories.storySessions.get(storyId)
+      if (!session) {
+        throw new HttpError({
+          statusCode: 404,
+          code: 'STORY_NOT_FOUND',
+          message: 'Story session not found',
+        })
+      }
+      try {
+        const result = await rerouteUnavailablePoi({
+          routePlan: request.body.routePlan,
+          storyGraph: session.storyGraph,
+          allPois: await dependencies.poiSource.load(),
+          currentPoiId: request.body.currentPoiId,
+          unavailablePoiIds: request.body.unavailablePoiIds,
+          mapProvider: dependencies.mapProvider,
+        })
+        await repositories.storySessions.save({
+          ...session,
+          preferences: request.body.preferences,
+          routePlan: result.routePlan,
+          storyGraph: result.storyGraph,
+          updatedAt: dependencies.now().toISOString(),
+        })
+        response.json(RerouteResponseSchema.parse(result))
+      } catch (error) {
+        if (error instanceof RerouteError) {
+          throw new HttpError({
+            statusCode: 422,
+            code: 'ROUTE_NOT_FOUND',
+            message: error.message,
+            details: { rerouteCode: error.code },
+          })
+        }
+        throw error
+      }
+    }),
   )
   app.post(
     '/v1/stories/:storyId/resolve',
