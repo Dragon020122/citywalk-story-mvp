@@ -1,4 +1,4 @@
-import { init as initializeCloudBase } from '@cloudbase/node-sdk'
+import { initializeCloudBase } from '../cloudbase-sdk.js'
 
 export const DEFAULT_AI_MODEL = 'deepseek-v4-flash'
 export const AI_TIMEOUT_MS = 60_000

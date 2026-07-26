@@ -24,10 +24,7 @@ const preferences: JourneyPreferences = {
   storyExplorationRatio: 60,
 }
 
-function poi(
-  index: number,
-  overrides: Partial<Poi> = {},
-): Poi {
+function poi(index: number, overrides: Partial<Poi> = {}): Poi {
   return {
     id: `mock_release_${index}`,
     routePackId: preferences.routePackId,
@@ -184,5 +181,44 @@ describe('route engine release coverage', () => {
     })
     expect(result.selectedPois).toHaveLength(1)
     expect(result.alternativePois).toHaveLength(2)
+  })
+
+  it('accepts a zero budget and only selects free POIs', () => {
+    const result = selectRoutePois({
+      preferences: { ...preferences, budgetCny: 0 },
+      pois: [
+        ...Array.from({ length: 12 }, (_, index) =>
+          poi(index + 1, { estimatedCostCny: 0 }),
+        ),
+        poi(13, { estimatedCostCny: 1 }),
+      ],
+      contentMode: 'mock',
+    })
+
+    expect(
+      [...result.selectedPois, ...result.alternativePois].every(
+        (candidate) => candidate.estimatedCostCny === 0,
+      ),
+    ).toBe(true)
+  })
+
+  it('reports a route planning error when free POIs are insufficient', () => {
+    expect(() =>
+      selectRoutePois({
+        preferences: { ...preferences, budgetCny: 0 },
+        pois: [
+          poi(1, { estimatedCostCny: 0 }),
+          poi(2, { estimatedCostCny: 0 }),
+          ...Array.from({ length: 4 }, (_, index) =>
+            poi(index + 3, { estimatedCostCny: 1 }),
+          ),
+        ],
+        contentMode: 'mock',
+      }),
+    ).toThrowError(
+      expect.objectContaining<Partial<RoutePlanningError>>({
+        code: 'INSUFFICIENT_POIS',
+      }),
+    )
   })
 })

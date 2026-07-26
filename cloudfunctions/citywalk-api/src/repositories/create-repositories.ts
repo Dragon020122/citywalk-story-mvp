@@ -1,4 +1,4 @@
-import { init as initializeCloudBase } from '@cloudbase/node-sdk'
+import { initializeCloudBase } from '../cloudbase-sdk.js'
 import {
   CloudBaseFeedbackRepository,
   CloudBaseGenerationCacheRepository,

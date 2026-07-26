@@ -18,6 +18,7 @@ import {
 
 export const JOURNEY_DRAFT_ID = 'draft'
 export const PENDING_GENERATION_ID = 'pending'
+const JOURNEY_DRAFT_SCHEMA_VERSION = 2
 
 const DraftValuesSchema = JourneyPreferencesSchema.partial().extend({
   routePackId: z.string().optional(),
@@ -28,6 +29,70 @@ const JourneyDraftSchema = z.object({
   step: z.number().int().min(0).max(7),
   values: DraftValuesSchema,
 })
+
+const durationMinutesValues = [120, 180, 240] as const
+const budgetCnyValues = [0, 50, 100, 200, 300] as const
+
+function migrateDraftValues(values: unknown): {
+  values: unknown
+  changed: boolean
+} {
+  if (typeof values !== 'object' || values === null || Array.isArray(values)) {
+    return { values, changed: false }
+  }
+
+  const migrated = { ...values } as Record<string, unknown>
+  const durationMinutes = migrated.durationMinutes
+  let changed = false
+  if (durationMinutes !== undefined) {
+    const numericDuration =
+      typeof durationMinutes === 'string'
+        ? Number(durationMinutes)
+        : durationMinutes
+    if (
+      typeof numericDuration === 'number' &&
+      durationMinutesValues.some((value) => value === numericDuration)
+    ) {
+      if (numericDuration !== durationMinutes) {
+        migrated.durationMinutes = numericDuration
+        changed = true
+      }
+    } else {
+      delete migrated.durationMinutes
+      changed = true
+    }
+  }
+
+  const legacyBudget =
+    migrated.budgetCny ?? migrated.budget ?? migrated.budgetLimit
+  if (legacyBudget !== undefined) {
+    const numericBudget =
+      typeof legacyBudget === 'string' ? Number(legacyBudget) : legacyBudget
+    if (
+      typeof numericBudget === 'number' &&
+      budgetCnyValues.some((value) => value === numericBudget)
+    ) {
+      if (migrated.budgetCny !== numericBudget) {
+        migrated.budgetCny = numericBudget
+        changed = true
+      }
+    } else if ('budgetCny' in migrated) {
+      delete migrated.budgetCny
+      changed = true
+    }
+  }
+
+  if ('budget' in migrated) {
+    delete migrated.budget
+    changed = true
+  }
+  if ('budgetLimit' in migrated) {
+    delete migrated.budgetLimit
+    changed = true
+  }
+
+  return { values: migrated, changed }
+}
 
 export const GenerationResultSchema = z.object({
   preferences: JourneyPreferencesSchema,
@@ -51,9 +116,10 @@ export interface GenerationResult {
 export async function loadJourneyDraft(): Promise<JourneyDraft | null> {
   const record = await db.draftPreferences.get(JOURNEY_DRAFT_ID)
   if (!record) return null
+  const migrated = migrateDraftValues(record.values)
   const parsed = JourneyDraftSchema.safeParse({
     step: record.step,
-    values: record.values,
+    values: migrated.values,
   })
   if (!parsed.success) {
     await quarantineRecord({
@@ -63,6 +129,16 @@ export async function loadJourneyDraft(): Promise<JourneyDraft | null> {
       error: parsed.error.message,
     })
     return null
+  }
+  if (
+    migrated.changed ||
+    record.schemaVersion !== JOURNEY_DRAFT_SCHEMA_VERSION
+  ) {
+    await db.draftPreferences.update(record.id, {
+      values: parsed.data.values,
+      schemaVersion: JOURNEY_DRAFT_SCHEMA_VERSION,
+      updatedAt: new Date().toISOString(),
+    })
   }
   const values = Object.fromEntries(
     Object.entries(parsed.data.values).filter(
@@ -81,6 +157,7 @@ export async function saveJourneyDraft(
     id: JOURNEY_DRAFT_ID,
     step: parsed.step,
     values: parsed.values,
+    schemaVersion: JOURNEY_DRAFT_SCHEMA_VERSION,
     updatedAt: new Date().toISOString(),
   })
 }
@@ -95,6 +172,7 @@ export async function savePendingGeneration(preferences: JourneyPreferences) {
     id: PENDING_GENERATION_ID,
     step: null,
     values: parsed,
+    schemaVersion: JOURNEY_DRAFT_SCHEMA_VERSION,
     updatedAt: new Date().toISOString(),
   })
 }

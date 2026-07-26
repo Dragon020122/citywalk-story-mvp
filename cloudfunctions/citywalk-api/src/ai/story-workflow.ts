@@ -21,6 +21,14 @@ export interface StoryWorkflow {
   ): Promise<GenerateStoryResponse>
 }
 
+export class MockStoryWorkflow implements StoryWorkflow {
+  async generate(
+    request: GenerateStoryRequest,
+  ): Promise<GenerateStoryResponse> {
+    return createMockStory(request)
+  }
+}
+
 export class DefaultStoryWorkflow implements StoryWorkflow {
   constructor(
     private readonly options: {

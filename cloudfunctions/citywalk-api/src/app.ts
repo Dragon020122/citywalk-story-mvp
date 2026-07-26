@@ -22,6 +22,7 @@ import {
   BlueprintValidationError,
   CloudBaseAiClient,
   DefaultStoryWorkflow,
+  MockStoryWorkflow,
   regenerateNodeCopy,
   type AiTextClient,
   type StoryWorkflow,
@@ -113,7 +114,9 @@ export const createDefaultDependencies = (
         poiDataVersion: config.poiDataVersion,
         now: () => new Date(),
       })
-    : null
+    : config.contentMode === 'mock'
+      ? new MockStoryWorkflow()
+      : null
 
   return {
     config,
@@ -170,7 +173,7 @@ export const createApp = (
       status: 'ok',
       version: config.version,
       environment: config.nodeEnvironment,
-      aiEnabled: Boolean(dependencies.storyWorkflow),
+      aiEnabled: Boolean(dependencies.aiClient),
       mapEnabled: Boolean(config.tencentMapServerKey),
       databaseEnabled: repositories.databaseStatus.enabled,
     })

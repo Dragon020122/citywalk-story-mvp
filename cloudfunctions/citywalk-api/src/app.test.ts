@@ -7,8 +7,10 @@ import supertest from 'supertest'
 import { describe, expect, it } from 'vitest'
 import {
   createApp,
+  createDefaultDependencies,
   type AppDependencies,
 } from './app.js'
+import { MockStoryWorkflow } from './ai/index.js'
 import { loadConfig } from './config.js'
 import { StaticPoiSource } from './poi-source.js'
 import {
@@ -92,6 +94,22 @@ const createTestDependencies = (
 }
 
 describe('CloudBase HTTP API foundation', () => {
+  it('uses server-side Mock story generation only in mock content mode', () => {
+    const mockDependencies = createDefaultDependencies({
+      NODE_ENV: 'development',
+      APP_CONTENT_MODE: 'mock',
+    })
+    const verifiedDependencies = createDefaultDependencies({
+      NODE_ENV: 'development',
+      APP_CONTENT_MODE: 'verified',
+    })
+
+    expect(mockDependencies.aiClient).toBeNull()
+    expect(mockDependencies.storyWorkflow).toBeDefined()
+    expect(verifiedDependencies.aiClient).toBeNull()
+    expect(verifiedDependencies.storyWorkflow).toBeNull()
+  })
+
   it('returns health status without secrets', async () => {
     const response = await supertest(
       createApp(createTestDependencies()),
@@ -121,6 +139,28 @@ describe('CloudBase HTTP API foundation', () => {
     expect(response.status).toBe(200)
     expect(response.body.routePlan.selectedPois).toHaveLength(7)
     expect(response.body.routePlan.routeId).toMatch(/^route_/u)
+  })
+
+  it('completes route and story generation in mock mode without AI', async () => {
+    const dependencies = createTestDependencies()
+    dependencies.storyWorkflow = new MockStoryWorkflow()
+    const client = supertest(createApp(dependencies))
+    const routeResponse = await client
+      .post('/v1/routes/plan')
+      .set('x-device-id', 'mock-generation-device')
+      .send({ preferences })
+    const storyResponse = await client
+      .post('/v1/stories/generate')
+      .set('x-device-id', 'mock-generation-device')
+      .send({
+        preferences,
+        routePlan: routeResponse.body.routePlan,
+      })
+
+    expect(routeResponse.status).toBe(200)
+    expect(storyResponse.status).toBe(200)
+    expect(storyResponse.body.fallbackUsed).toBe(true)
+    expect(storyResponse.body.blueprint.storyId).toMatch(/^story_route_/u)
   })
 
   it('rejects an invalid route request with a normalized error', async () => {

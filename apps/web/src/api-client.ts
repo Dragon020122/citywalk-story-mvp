@@ -29,17 +29,35 @@ async function postJson(
   body: unknown,
   signal: AbortSignal,
 ): Promise<unknown> {
-  const response = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal,
-  })
+  let response: Response
+  try {
+    response = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal,
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw error
+    }
+    throw new ApiRequestError(
+      '无法连接生成服务，请确认本地 API 已启动后重试。',
+      0,
+      'NETWORK_ERROR',
+    )
+  }
   const payload: unknown = await response.json().catch(() => null)
   if (!response.ok) {
     const apiError = ApiErrorSchema.safeParse(payload)
+    const message =
+      apiError.success && apiError.data.code === 'AI_GENERATION_ERROR'
+        ? '故事生成服务暂不可用，请检查 CloudBase AI 配置后重试。'
+        : apiError.success
+          ? apiError.data.message
+          : `生成服务返回异常响应（HTTP ${response.status}），请稍后重试。`
     throw new ApiRequestError(
-      apiError.success ? apiError.data.message : '请求失败，请稍后重试。',
+      message,
       response.status,
       apiError.success ? apiError.data.code : undefined,
     )

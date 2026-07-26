@@ -4,7 +4,7 @@ import {
   type JourneyPreferencesInput,
 } from '@citywalk/shared'
 import { ArrowLeft, ArrowRight, RotateCcw } from 'lucide-react'
-import { useForm, useWatch } from 'react-hook-form'
+import { useForm, useWatch, type DefaultValues } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../components/Button'
 import { JourneyStepFields } from '../components/JourneyStepFields'
@@ -45,24 +45,23 @@ const stepFields: Array<Array<keyof JourneyPreferencesInput>> = [
   [],
 ]
 
-const baseDefaults: JourneyPreferencesInput = {
+const baseDefaults = {
   routePackId: '',
   startPoiId: 'auto',
-  durationMinutes: 180,
   companion: 'solo',
   interests: [],
   genre: 'mystery',
   taskIntensity: 'standard',
-  budgetCny: 50,
   indoorPreference: 'balanced',
   photoTasksEnabled: true,
   puzzleTasksEnabled: true,
   storyExplorationRatio: 60,
-}
+} satisfies DefaultValues<JourneyPreferencesInput>
 
 export function CreatePage() {
   const navigate = useNavigate()
   const submitLock = useRef(false)
+  const hasUserInteracted = useRef(false)
   const [step, setStep] = useState(0)
   const [restored, setRestored] = useState(false)
   const [hydrated, setHydrated] = useState(false)
@@ -77,7 +76,7 @@ export function CreatePage() {
     let active = true
     void loadJourneyDraft().then((draft) => {
       if (!active) return
-      if (draft) {
+      if (draft && !hasUserInteracted.current) {
         form.reset({ ...baseDefaults, ...draft.values })
         setStep(draft.step)
         setRestored(true)
@@ -107,14 +106,41 @@ export function CreatePage() {
     if (valid) setStep((current) => Math.min(current + 1, 7))
   }
 
-  const submit = form.handleSubmit(async (input) => {
-    if (submitLock.current) return
-    submitLock.current = true
-    const preferences = JourneyPreferencesSchema.parse(input)
-    await savePendingGeneration(preferences)
-    await clearJourneyDraft()
-    navigate('/generating')
-  })
+  const returnToFirstInvalidStep = (
+    fields: Array<keyof JourneyPreferencesInput>,
+  ) => {
+    const invalidStep = stepFields.findIndex((stepFieldNames) =>
+      stepFieldNames.some((field) => fields.includes(field)),
+    )
+    if (invalidStep >= 0) setStep(invalidStep)
+  }
+
+  const submit = form.handleSubmit(
+    async (input) => {
+      if (submitLock.current) return
+      const parsed = JourneyPreferencesSchema.safeParse(input)
+      if (!parsed.success) {
+        const fields = parsed.error.issues
+          .map((issue) => issue.path[0])
+          .filter(
+            (field): field is keyof JourneyPreferencesInput =>
+              typeof field === 'string',
+          )
+        returnToFirstInvalidStep(fields)
+        return
+      }
+
+      submitLock.current = true
+      await savePendingGeneration(parsed.data)
+      await clearJourneyDraft()
+      navigate('/generating')
+    },
+    (errors) => {
+      returnToFirstInvalidStep(
+        Object.keys(errors) as Array<keyof JourneyPreferencesInput>,
+      )
+    },
+  )
 
   const actions = (
     <div className="form-actions">
@@ -176,11 +202,19 @@ export function CreatePage() {
         <h1>{stepTitles[step]}</h1>
         <p>每一步都会自动保存到当前设备，返回上一步不会丢失选择。</p>
       </section>
-      <form id="journey-form" onSubmit={submit} noValidate>
+      <form
+        id="journey-form"
+        onSubmit={submit}
+        onChangeCapture={() => {
+          hasUserInteracted.current = true
+        }}
+        noValidate
+      >
         <JourneyStepFields
           step={step}
           values={values}
           errors={form.formState.errors}
+          control={form.control}
           register={form.register}
           setValue={form.setValue}
         />

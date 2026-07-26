@@ -1,8 +1,10 @@
 import type {
+  Control,
   FieldErrors,
   UseFormRegister,
   UseFormSetValue,
 } from 'react-hook-form'
+import { Controller } from 'react-hook-form'
 import type { JourneyPreferencesInput } from '@citywalk/shared'
 import {
   budgetOptions,
@@ -19,6 +21,7 @@ interface JourneyStepFieldsProps {
   step: number
   values: JourneyPreferencesInput
   errors: FieldErrors<JourneyPreferencesInput>
+  control: Control<JourneyPreferencesInput>
   register: UseFormRegister<JourneyPreferencesInput>
   setValue: UseFormSetValue<JourneyPreferencesInput>
 }
@@ -42,6 +45,7 @@ export function JourneyStepFields({
   step,
   values,
   errors,
+  control,
   register,
   setValue,
 }: JourneyStepFieldsProps) {
@@ -83,24 +87,40 @@ export function JourneyStepFields({
       <div className="form-section-stack">
         <fieldset aria-describedby="durationMinutes-error">
           <legend>预计时长</legend>
-          <div className="form-option-grid">
-            {durationOptions.map((option) => (
-              <label
-                className="form-option form-option--compact"
-                key={option.value}
-              >
-                <input
-                  type="radio"
-                  value={option.value}
-                  {...register('durationMinutes', { valueAsNumber: true })}
-                />
-                <span>
-                  <strong>{option.label}</strong>
-                  <small>{option.description}</small>
-                </span>
-              </label>
-            ))}
-          </div>
+          <Controller
+            control={control}
+            name="durationMinutes"
+            render={({ field }) => (
+              <div className="form-option-grid">
+                {durationOptions.map((option) => (
+                  <label
+                    className="form-option form-option--compact"
+                    key={option.value}
+                  >
+                    <input
+                      ref={field.ref}
+                      type="radio"
+                      name={field.name}
+                      value={option.value}
+                      checked={field.value === option.value}
+                      onBlur={field.onBlur}
+                      onChange={() => {
+                        setValue('durationMinutes', option.value, {
+                          shouldDirty: true,
+                          shouldTouch: true,
+                          shouldValidate: true,
+                        })
+                      }}
+                    />
+                    <span>
+                      <strong>{option.label}</strong>
+                      <small>{option.description}</small>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+          />
           <FieldError
             id="durationMinutes-error"
             message={errors.durationMinutes?.message}
@@ -266,18 +286,34 @@ export function JourneyStepFields({
       <div className="form-section-stack">
         <fieldset aria-describedby="budgetCny-error">
           <legend>单人预算上限</legend>
-          <div className="budget-grid">
-            {budgetOptions.map((budget) => (
-              <label className="interest-option" key={budget}>
-                <input
-                  type="radio"
-                  value={budget}
-                  {...register('budgetCny', { valueAsNumber: true })}
-                />
-                <span>{budget === 0 ? '免费' : `¥${budget}`}</span>
-              </label>
-            ))}
-          </div>
+          <Controller
+            control={control}
+            name="budgetCny"
+            render={({ field }) => (
+              <div className="budget-grid">
+                {budgetOptions.map((budget) => (
+                  <label className="interest-option" key={budget}>
+                    <input
+                      ref={field.ref}
+                      type="radio"
+                      name={field.name}
+                      value={budget}
+                      checked={field.value === budget}
+                      onBlur={field.onBlur}
+                      onChange={() => {
+                        setValue('budgetCny', budget, {
+                          shouldDirty: true,
+                          shouldTouch: true,
+                          shouldValidate: true,
+                        })
+                      }}
+                    />
+                    <span>{budget === 0 ? '免费' : `¥${budget}`}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          />
           <FieldError
             id="budgetCny-error"
             message={errors.budgetCny?.message}

@@ -150,6 +150,54 @@ describe('JourneyPreferencesSchema', () => {
 
     expect(result.success).toBe(false)
   })
+
+  it.each([120, 180, 240] as const)(
+    'accepts the supported duration %i as a number',
+    (durationMinutes) => {
+      expect(
+        JourneyPreferencesSchema.safeParse({
+          ...validPreferences,
+          durationMinutes,
+        }).success,
+      ).toBe(true)
+    },
+  )
+
+  it.each([150, '180'] as const)(
+    'rejects an unsupported or non-numeric duration %s',
+    (durationMinutes) => {
+      expect(
+        JourneyPreferencesSchema.safeParse({
+          ...validPreferences,
+          durationMinutes,
+        }).success,
+      ).toBe(false)
+    },
+  )
+
+  it.each([0, 50, 100, 200, 300] as const)(
+    'accepts the supported budget %i as a number',
+    (budgetCny) => {
+      expect(
+        JourneyPreferencesSchema.safeParse({
+          ...validPreferences,
+          budgetCny,
+        }).success,
+      ).toBe(true)
+    },
+  )
+
+  it.each([-1, 25, 301, '300'] as const)(
+    'rejects an unsupported or non-numeric budget %s',
+    (budgetCny) => {
+      expect(
+        JourneyPreferencesSchema.safeParse({
+          ...validPreferences,
+          budgetCny,
+        }).success,
+      ).toBe(false)
+    },
+  )
 })
 
 describe('PoiSchema', () => {

@@ -46,6 +46,7 @@ export interface DraftPreferencesRecord {
   id: 'draft' | 'pending'
   step: number | null
   values: unknown
+  schemaVersion?: number
   updatedAt: string
 }
 

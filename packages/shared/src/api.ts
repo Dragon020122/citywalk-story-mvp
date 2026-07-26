@@ -12,6 +12,7 @@ import {
 
 export const ApiErrorCodeSchema = z.enum([
   'VALIDATION_ERROR',
+  'NETWORK_ERROR',
   'ROUTE_NOT_FOUND',
   'POI_NOT_VERIFIED',
   'MAP_SERVICE_ERROR',

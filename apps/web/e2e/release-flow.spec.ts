@@ -40,13 +40,17 @@ test('MVP 1.0 完整移动端发布流程', async ({ page, context }) => {
 
   await page.locator('input[type="radio"]').first().check()
   await page.locator('.form-actions button:not([type="submit"])').last().click()
+  await page.getByLabel(/3 小时/).check()
   await page.locator('.form-actions button:not([type="submit"])').last().click()
   await page.locator('.form-actions button:not([type="submit"])').last().click()
   await page.locator('input[type="checkbox"]').first().check()
   await page.locator('.form-actions button:not([type="submit"])').last().click()
   await page.locator('.form-actions button:not([type="submit"])').last().click()
   await page.locator('.form-actions button:not([type="submit"])').last().click()
+  await page.getByLabel('¥100').check()
   await page.locator('.form-actions button:not([type="submit"])').last().click()
+  await expect(page.getByRole('heading', { name: '确认生成' })).toBeVisible()
+  await page.getByRole('button', { name: '生成故事' }).dispatchEvent('click')
 
   await expect(page).toHaveURL(/\/story\/story_release_e2e\/preview$/)
   await expect(
@@ -101,9 +105,7 @@ test('MVP 1.0 完整移动端发布流程', async ({ page, context }) => {
   await page.getByRole('button', { name: '我已到达' }).click()
   await page.getByRole('button', { name: '阅读剧情' }).click()
   await page.getByRole('button', { name: '继续' }).click()
-  await page
-    .getByRole('button', { name: '继续沿安全路线追踪' })
-    .click()
+  await page.getByRole('button', { name: '继续沿安全路线追踪' }).click()
   await page.getByRole('button', { name: '前往下一站' }).click()
   await page.getByRole('button', { name: '我已到达' }).click()
   await page.getByRole('button', { name: '阅读剧情' }).click()

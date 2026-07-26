@@ -1,13 +1,16 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App'
+import * as journeyStorage from './journey-storage'
 import {
+  loadJourneyDraft,
   loadGenerationResult,
   saveGenerationResult,
   saveJourneyDraft,
   savePendingGeneration,
+  type JourneyDraft,
 } from './journey-storage'
 import { db } from './persistence/database'
 import { queryClient } from './query-client'
@@ -50,6 +53,259 @@ describe('创建行程表单', () => {
     expect(
       screen.getByRole('heading', { name: '设置时长和起点' }),
     ).toBeInTheDocument()
+  })
+
+  it('选择 3 小时后可进入步骤 3，返回后仍保持选择', async () => {
+    const user = userEvent.setup()
+    renderRoute('/create')
+
+    await user.click(screen.getByLabelText(/梧桐区档案线/))
+    await user.click(screen.getByRole('button', { name: /下一步/ }))
+
+    const threeHours = screen.getByLabelText(/3 小时/)
+    await user.click(threeHours)
+    expect(threeHours).toBeChecked()
+
+    await user.click(screen.getByRole('button', { name: /下一步/ }))
+    expect(
+      screen.getByRole('heading', { name: '选择同行对象' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('请选择漫游时长。')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /上一步/ }))
+    expect(screen.getByLabelText(/3 小时/)).toBeChecked()
+    await user.click(screen.getByRole('button', { name: /下一步/ }))
+    expect(
+      screen.getByRole('heading', { name: '选择同行对象' }),
+    ).toBeInTheDocument()
+  })
+
+  it('未选择时长时保留必填校验', async () => {
+    const user = userEvent.setup()
+    renderRoute('/create')
+
+    await user.click(screen.getByLabelText(/梧桐区档案线/))
+    await user.click(screen.getByRole('button', { name: /下一步/ }))
+    await user.click(screen.getByRole('button', { name: /下一步/ }))
+
+    expect(screen.getByText('请选择漫游时长。')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: '设置时长和起点' }),
+    ).toBeInTheDocument()
+  })
+
+  it.each(['2 小时', '3 小时', '4 小时'])(
+    '%s 对应的数字时长可以通过步骤 2 校验',
+    async (label) => {
+      const user = userEvent.setup()
+      renderRoute('/create')
+
+      await user.click(screen.getByLabelText(/梧桐区档案线/))
+      await user.click(screen.getByRole('button', { name: /下一步/ }))
+      await user.click(screen.getByLabelText(new RegExp(label)))
+      await user.click(screen.getByRole('button', { name: /下一步/ }))
+
+      expect(
+        screen.getByRole('heading', { name: '选择同行对象' }),
+      ).toBeInTheDocument()
+    },
+  )
+
+  it('迁移字符串旧草稿时长为数字，非法旧值会被移除', async () => {
+    await db.draftPreferences.put({
+      id: 'draft',
+      step: 1,
+      values: {
+        ...testGenerationResult.preferences,
+        durationMinutes: '180',
+      },
+      updatedAt: '2026-07-26T08:00:00.000Z',
+    })
+
+    await expect(loadJourneyDraft()).resolves.toMatchObject({
+      values: { durationMinutes: 180 },
+    })
+    expect((await db.draftPreferences.get('draft'))?.values).toMatchObject({
+      durationMinutes: 180,
+    })
+
+    await db.draftPreferences.put({
+      id: 'draft',
+      step: 1,
+      values: {
+        ...testGenerationResult.preferences,
+        durationMinutes: 999,
+      },
+      updatedAt: '2026-07-26T08:00:00.000Z',
+    })
+
+    const invalidDraft = await loadJourneyDraft()
+    expect(invalidDraft?.values).not.toHaveProperty('durationMinutes')
+  })
+
+  it('用户选择时长后不会被延迟完成的草稿恢复覆盖', async () => {
+    const storedDraft: JourneyDraft = {
+      step: 1,
+      values: {
+        ...testGenerationResult.preferences,
+        durationMinutes: 120,
+      },
+    }
+    let resolveDraft: ((value: JourneyDraft | null) => void) | undefined
+    vi.spyOn(journeyStorage, 'loadJourneyDraft').mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveDraft = resolve
+      }),
+    )
+    const user = userEvent.setup()
+    renderRoute('/create')
+    await waitFor(() => expect(resolveDraft).toBeDefined())
+
+    await user.click(screen.getByLabelText(/梧桐区档案线/))
+    await user.click(screen.getByRole('button', { name: /下一步/ }))
+    await user.click(screen.getByLabelText(/3 小时/))
+
+    await act(async () => {
+      resolveDraft?.(storedDraft)
+      await Promise.resolve()
+    })
+
+    expect(screen.getByLabelText(/3 小时/)).toBeChecked()
+    expect(screen.getByLabelText(/2 小时/)).not.toBeChecked()
+    expect(screen.queryByText('已恢复未提交草稿')).not.toBeInTheDocument()
+  })
+
+  it.each([0, 50, 100, 200, 300] as const)(
+    '数字预算 %i 可以通过步骤 7 校验并进入确认页',
+    async (budgetCny) => {
+      const draftValues: JourneyDraft['values'] = {
+        ...testGenerationResult.preferences,
+      }
+      delete draftValues.budgetCny
+      await saveJourneyDraft(6, draftValues)
+      const user = userEvent.setup()
+      renderRoute('/create')
+      await screen.findByText('已恢复未提交草稿')
+
+      const budgetOption = screen.getByLabelText(
+        budgetCny === 0 ? '免费' : `¥${budgetCny}`,
+      )
+      await user.click(budgetOption)
+
+      expect(budgetOption).toBeChecked()
+      expect(screen.queryByText('请选择预算上限。')).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /下一步/ }))
+      expect(
+        screen.getByRole('heading', { name: '确认生成' }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          budgetCny === 0 ? /免费 ·/ : new RegExp(`¥${budgetCny} ·`),
+        ),
+      ).toBeInTheDocument()
+    },
+  )
+
+  it('未选择预算时停留在步骤 7 且不发起生成请求', async () => {
+    const draftValues: JourneyDraft['values'] = {
+      ...testGenerationResult.preferences,
+    }
+    delete draftValues.budgetCny
+    await saveJourneyDraft(6, draftValues)
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const user = userEvent.setup()
+    renderRoute('/create')
+    await screen.findByText('已恢复未提交草稿')
+
+    await user.click(screen.getByRole('button', { name: /下一步/ }))
+
+    expect(screen.getByText('请选择预算上限。')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: '设置预算与室内偏好' }),
+    ).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('确认页提交前会重新校验完整表单并返回步骤 7', async () => {
+    const draftValues: JourneyDraft['values'] = {
+      ...testGenerationResult.preferences,
+    }
+    delete draftValues.budgetCny
+    await saveJourneyDraft(7, draftValues)
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const user = userEvent.setup()
+    renderRoute('/create')
+    await screen.findByText('已恢复未提交草稿')
+
+    await user.click(screen.getByRole('button', { name: /生成故事/ }))
+
+    expect(
+      screen.getByRole('heading', { name: '设置预算与室内偏好' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('请选择预算上限。')).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('返回步骤 7 修改预算后，确认摘要使用最新数字预算', async () => {
+    await saveDraft(6)
+    const user = userEvent.setup()
+    renderRoute('/create')
+    await screen.findByText('已恢复未提交草稿')
+
+    await user.click(screen.getByLabelText('¥100'))
+    await user.click(screen.getByRole('button', { name: /下一步/ }))
+    await user.click(screen.getByRole('button', { name: /上一步/ }))
+    expect(screen.getByLabelText('¥100')).toBeChecked()
+
+    await user.click(screen.getByLabelText('¥300'))
+    await user.click(screen.getByRole('button', { name: /下一步/ }))
+    expect(screen.getByText(/¥300 ·/)).toBeInTheDocument()
+  })
+
+  it.each([
+    [{ budgetCny: '300' }, 300],
+    [{ budget: 300 }, 300],
+    [{ budgetLimit: 300 }, 300],
+    [{ budgetCny: '0' }, 0],
+  ] as const)(
+    '迁移旧草稿预算 %# 为数字 budgetCny',
+    async (legacy, expected) => {
+      await db.draftPreferences.put({
+        id: 'draft',
+        step: 6,
+        values: {
+          ...testGenerationResult.preferences,
+          budgetCny: undefined,
+          ...legacy,
+        },
+        updatedAt: '2026-07-26T08:00:00.000Z',
+      })
+
+      await expect(loadJourneyDraft()).resolves.toMatchObject({
+        values: { budgetCny: expected },
+      })
+      expect((await db.draftPreferences.get('draft'))?.values).toMatchObject({
+        budgetCny: expected,
+      })
+      expect((await db.draftPreferences.get('draft'))?.schemaVersion).toBe(2)
+    },
+  )
+
+  it('移除非法旧草稿预算并要求用户重新选择', async () => {
+    await db.draftPreferences.put({
+      id: 'draft',
+      step: 6,
+      values: {
+        ...testGenerationResult.preferences,
+        budgetCny: 999,
+      },
+      updatedAt: '2026-07-26T08:00:00.000Z',
+    })
+
+    const draft = await loadJourneyDraft()
+    expect(draft?.values).not.toHaveProperty('budgetCny')
   })
 
   it('最多允许选择四项兴趣', async () => {
@@ -102,6 +358,16 @@ describe('创建行程表单', () => {
 })
 
 describe('生成请求与预览保护', () => {
+  it('无法连接 API 时显示可操作的网络错误', async () => {
+    await savePendingGeneration(testGenerationResult.preferences)
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')))
+    renderRoute('/generating')
+
+    expect(
+      await screen.findByText('无法连接生成服务，请确认本地 API 已启动后重试。'),
+    ).toBeInTheDocument()
+  })
+
   it('生成失败后显示错误并允许重试', async () => {
     await savePendingGeneration(testGenerationResult.preferences)
     const fetchMock = vi.fn().mockResolvedValue(
@@ -151,6 +417,18 @@ describe('生成请求与预览保护', () => {
       await screen.findByText('AI 剧情校验未通过，已启用 Mock 回退故事'),
     ).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(2)
+    const routeRequest = JSON.parse(
+      String(vi.mocked(fetchMock).mock.calls[0]?.[1]?.body),
+    ) as { preferences: Record<string, unknown> }
+    const storyRequest = JSON.parse(
+      String(vi.mocked(fetchMock).mock.calls[1]?.[1]?.body),
+    ) as { preferences: Record<string, unknown> }
+    for (const request of [routeRequest, storyRequest]) {
+      expect(request.preferences.budgetCny).toBe(50)
+      expect(typeof request.preferences.budgetCny).toBe('number')
+      expect(request.preferences).not.toHaveProperty('budget')
+      expect(request.preferences).not.toHaveProperty('budgetLimit')
+    }
     expect(
       screen.queryByText('这段完整剧情不应出现在预览页面。'),
     ).not.toBeInTheDocument()

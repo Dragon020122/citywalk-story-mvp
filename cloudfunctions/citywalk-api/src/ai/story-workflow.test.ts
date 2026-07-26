@@ -18,7 +18,10 @@ import {
 } from './json-parser.js'
 import { createMockStory } from './mock-story.js'
 import { regenerateNodeCopy } from './regenerate-node.js'
-import { DefaultStoryWorkflow } from './story-workflow.js'
+import {
+  DefaultStoryWorkflow,
+  MockStoryWorkflow,
+} from './story-workflow.js'
 import { validateStoryGraph } from './validate-story-graph.js'
 import { z } from 'zod'
 
@@ -186,6 +189,13 @@ describe('StoryGraph semantic validation', () => {
 })
 
 describe('structured story workflow', () => {
+  it('generates a schema-valid story without AI in mock mode', async () => {
+    const result = await new MockStoryWorkflow().generate(request)
+
+    expect(result).toEqual(fixture)
+    expect(result.fallbackUsed).toBe(true)
+  })
+
   it('repairs one invalid graph successfully', async () => {
     const client = new QueueAiClient([
       validBlueprintOutput,
