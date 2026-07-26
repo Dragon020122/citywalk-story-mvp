@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" fill="#121315"/>
+  <path d="M30 35h132v122H30z" fill="none" stroke="#d7d1c5" stroke-width="4"/>
+  <path d="M30 62h132M62 35v122" stroke="#d7d1c5" stroke-width="4"/>
+  <path d="M85 93h54v9H85zm0 21h36v9H85z" fill="#d84a3a"/>
+  <text x="41" y="55" fill="#d7d1c5" font-family="monospace" font-size="13">CW</text>
+</svg>

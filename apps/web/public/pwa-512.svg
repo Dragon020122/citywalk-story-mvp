@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#121315"/>
+  <path d="M80 92h352v328H80z" fill="none" stroke="#d7d1c5" stroke-width="12"/>
+  <path d="M80 164h352M164 92v328" stroke="#d7d1c5" stroke-width="12"/>
+  <path d="M226 248h142v24H226zm0 56h96v24h-96z" fill="#d84a3a"/>
+  <text x="108" y="144" fill="#d7d1c5" font-family="monospace" font-size="34">CW</text>
+</svg>
