@@ -204,8 +204,16 @@ describe('CloudBase HTTP API foundation', () => {
       .set('x-device-id', 'fallback-device')
       .send({
         storyId: 'story-test',
-        rating: 5,
-        tags: ['useful'],
+        routePackId: 'mock_api_route',
+        overallRating: 5,
+        storyCoherence: 4,
+        routeQuality: 5,
+        taskQuality: 4,
+        safetyFeeling: 5,
+        likedTags: ['useful'],
+        issueTags: [],
+        comment: '',
+        fallbackUsed: false,
       })
 
     expect(dependencies.repositories.databaseStatus.enabled).toBe(false)

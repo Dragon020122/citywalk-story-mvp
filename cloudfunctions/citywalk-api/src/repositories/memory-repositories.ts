@@ -59,7 +59,7 @@ export class LoggingFeedbackRepository implements FeedbackRepository {
     this.logger.info('feedback_fallback', {
       feedbackId: record.id,
       storyId: record.feedback.storyId,
-      rating: record.feedback.rating,
+      overallRating: record.feedback.overallRating,
       clientIdHash: record.clientIdHash,
     })
   }

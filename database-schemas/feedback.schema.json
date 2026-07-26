@@ -9,13 +9,40 @@
     "clientIdHash": { "type": "string", "minLength": 64, "maxLength": 64 },
     "feedback": {
       "type": "object",
-      "required": ["storyId", "rating", "tags"],
+      "additionalProperties": false,
+      "required": [
+        "storyId",
+        "routePackId",
+        "overallRating",
+        "storyCoherence",
+        "routeQuality",
+        "taskQuality",
+        "safetyFeeling",
+        "likedTags",
+        "issueTags",
+        "comment",
+        "fallbackUsed"
+      ],
       "properties": {
         "storyId": { "type": "string", "minLength": 1 },
-        "rating": { "type": "integer", "minimum": 1, "maximum": 5 },
-        "tags": { "type": "array", "items": { "type": "string" } },
-        "comment": { "type": "string", "maxLength": 2000 },
-        "context": { "type": "object" }
+        "routePackId": { "type": "string", "minLength": 1 },
+        "overallRating": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "storyCoherence": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "routeQuality": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "taskQuality": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "safetyFeeling": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "likedTags": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "issueTags": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "comment": { "type": "string", "maxLength": 1000 },
+        "fallbackUsed": { "type": "boolean" }
       }
     },
     "createdAt": { "type": "string", "format": "date-time" }

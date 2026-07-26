@@ -8,6 +8,7 @@ import {
   type StoryEnding,
   type StoryGraph,
   type StoryNode,
+  type SideQuestEndingStatus,
 } from './story.js'
 
 export const GameplayStateSchema = z.enum([
@@ -255,40 +256,115 @@ export function isEndingReachable(
   ending: StoryEnding,
   runtime: StoryRuntimeState,
 ): boolean {
-  return meetsStateRequirement(ending.requiredState, runtime)
+  return isEndingEligible(ending, createEndingCalculationInput(runtime))
 }
 
-export function resolveEnding(
-  graph: StoryGraph,
+export interface EndingCalculationInput {
+  effectScores: StoryRuntimeState['effectScores']
+  clues: string[]
+  items: string[]
+  flags: StoryRuntimeState['flags']
+  sideQuest: Record<string, SideQuestEndingStatus>
+  completedNodeIds: string[]
+}
+
+export function createEndingCalculationInput(
   runtime: StoryRuntimeState,
+): EndingCalculationInput {
+  const sideQuestIds = new Set<string>()
+  Object.keys(runtime.flags).forEach((key) => {
+    const match = /^sideQuest:(.+):(unlocked|completed)$/.exec(key)
+    if (match?.[1]) sideQuestIds.add(match[1])
+  })
+  runtime.sideQuestReturnNodeIds.forEach((id) => sideQuestIds.add(id))
+  runtime.declinedSideQuestNodeIds.forEach((id) => sideQuestIds.add(id))
+
+  const sideQuest = Object.fromEntries(
+    [...sideQuestIds].sort().map((id) => {
+      let status: SideQuestEndingStatus = 'locked'
+      if (
+        runtime.completedNodeIds.includes(id) ||
+        runtime.flags[`sideQuest:${id}:completed`] === true
+      ) {
+        status = 'completed'
+      } else if (runtime.declinedSideQuestNodeIds.includes(id)) {
+        status = 'declined'
+      } else if (
+        runtime.sideQuestReturnNodeIds.includes(id) ||
+        runtime.flags[`sideQuest:${id}:unlocked`] === true
+      ) {
+        status = 'unlocked'
+      }
+      return [id, status]
+    }),
+  )
+
+  return {
+    effectScores: { ...runtime.effectScores },
+    clues: [...runtime.clues],
+    items: [...runtime.items],
+    flags: { ...runtime.flags },
+    sideQuest,
+    completedNodeIds: [...runtime.completedNodeIds],
+  }
+}
+
+export function isEndingEligible(
+  ending: StoryEnding,
+  input: EndingCalculationInput,
+): boolean {
+  const runtimeView = {
+    effectScores: input.effectScores,
+    clues: input.clues,
+    items: input.items,
+    flags: input.flags,
+  } as StoryRuntimeState
+  if (!meetsStateRequirement(ending.requiredState, runtimeView)) return false
+
+  const conditions = ending.conditions
+  if (!conditions) return true
+  return (
+    input.completedNodeIds.length >= conditions.minimumCompletedNodes &&
+    conditions.completedNodeIds.every((id) =>
+      input.completedNodeIds.includes(id),
+    ) &&
+    Object.entries(conditions.sideQuest).every(
+      ([id, status]) => input.sideQuest[id] === status,
+    )
+  )
+}
+
+export function calculateEnding(
+  graph: StoryGraph,
+  input: EndingCalculationInput,
   incomplete = false,
 ): StoryEnding {
   if (
     !incomplete &&
     graph.hiddenEnding &&
-    isEndingReachable(graph.hiddenEnding, runtime)
+    isEndingEligible(graph.hiddenEnding, input)
   ) {
     return graph.hiddenEnding
   }
 
   const requestedEnding =
-    typeof runtime.flags.endingId === 'string'
-      ? graph.endings.find((ending) => ending.id === runtime.flags.endingId)
+    typeof input.flags.endingId === 'string'
+      ? graph.endings.find((ending) => ending.id === input.flags.endingId)
       : undefined
   const regularEnding =
-    requestedEnding && isEndingReachable(requestedEnding, runtime)
+    requestedEnding && isEndingEligible(requestedEnding, input)
       ? requestedEnding
-      : graph.endings.find((ending) => isEndingReachable(ending, runtime))
+      : graph.endings.find((ending) => isEndingEligible(ending, input))
 
   if (!incomplete && regularEnding) return regularEnding
 
   const strongestScore = SCORE_KEYS.reduce((best, key) =>
-    runtime.effectScores[key] > runtime.effectScores[best] ? key : best,
+    input.effectScores[key] > input.effectScores[best] ? key : best,
   )
   return {
     id: 'ending_incomplete',
     title: '未完的城市回声',
-    summary: `你带着 ${runtime.clues.length} 条线索、${runtime.items.length} 件道具和 ${runtime.completedNodeIds.length} 个已完成节点提前离开。${strongestScore} 是此刻最鲜明的倾向，未走完的暗线仍会留在档案里。`,
+    summary: `你带着 ${input.clues.length} 条线索、${input.items.length} 件道具和 ${input.completedNodeIds.length} 个已完成节点提前离开。${strongestScore} 是此刻最鲜明的倾向，未走完的暗线仍会留在档案里。`,
     requiredState: {
       minimumScores: {},
       clues: [],
@@ -296,6 +372,18 @@ export function resolveEnding(
       flags: {},
     },
   }
+}
+
+export function resolveEnding(
+  graph: StoryGraph,
+  runtime: StoryRuntimeState,
+  incomplete = false,
+): StoryEnding {
+  return calculateEnding(
+    graph,
+    createEndingCalculationInput(runtime),
+    incomplete,
+  )
 }
 
 export function validateRuntimeState(

@@ -33,6 +33,7 @@ import {
   useStoryHistory,
 } from '../persistence/hooks'
 import { db, deleteStoryCascade } from '../persistence/database'
+import { ResultsExperience } from '../results/ResultsExperience'
 
 interface PageShellProps extends PropsWithChildren {
   title: string
@@ -265,6 +266,18 @@ export function ResultPage() {
   const { storyId = '' } = useParams()
   const result = useStoredStory(storyId)
   const restored = useStoredGameplay(storyId, result?.story.storyGraph)
+
+  if (result && restored) {
+    return (
+      <PageShell title="故事结算" eyebrow="RESULT / 12">
+        <ResultsExperience
+          storyId={storyId}
+          result={result}
+          restored={restored}
+        />
+      </PageShell>
+    )
+  }
 
   return (
     <PageShell title="档案结案" eyebrow="RESULT">

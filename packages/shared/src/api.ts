@@ -105,15 +105,21 @@ export type ResolveStoryResponse = z.infer<
   typeof ResolveStoryResponseSchema
 >
 
-export const FeedbackRequestSchema = z.object({
-  storyId: NonEmptyStringSchema,
-  rating: z.number().int().min(1).max(5),
-  tags: z.array(NonEmptyStringSchema),
-  comment: z.string().trim().max(2000).optional(),
-  context: z
-    .record(NonEmptyStringSchema, FlagValueSchema)
-    .optional(),
-})
+export const FeedbackRequestSchema = z
+  .object({
+    storyId: NonEmptyStringSchema,
+    routePackId: NonEmptyStringSchema,
+    overallRating: z.number().int().min(1).max(5),
+    storyCoherence: z.number().int().min(1).max(5),
+    routeQuality: z.number().int().min(1).max(5),
+    taskQuality: z.number().int().min(1).max(5),
+    safetyFeeling: z.number().int().min(1).max(5),
+    likedTags: z.array(NonEmptyStringSchema).max(8),
+    issueTags: z.array(NonEmptyStringSchema).max(8),
+    comment: z.string().trim().max(1000),
+    fallbackUsed: z.boolean(),
+  })
+  .strict()
 export type FeedbackRequest = z.infer<typeof FeedbackRequestSchema>
 
 export const AnonymousEventRequestSchema = z.object({

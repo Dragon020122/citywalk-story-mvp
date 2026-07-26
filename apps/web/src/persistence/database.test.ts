@@ -9,7 +9,7 @@ import {
 } from '../journey-storage'
 import { loadGameplay, saveGameplay } from '../gameplay/gameplay-storage'
 import { testGenerationResult } from '../test/generation-fixture'
-import { CitywalkDatabase, db } from './database'
+import { CitywalkDatabase, db, resetStoryProgress } from './database'
 
 function result(id: string, savedAt: string): GenerationResult {
   return {
@@ -135,5 +135,43 @@ describe('Dexie 离线数据库', () => {
     expect(
       await db.syncQueue.where('kind').equals('story_completion').count(),
     ).toBe(1)
+  })
+  it('重新开始时清理运行状态、私人内容和待同步完成事件', async () => {
+    const story = result('story_replay', '2026-07-26T08:00:00.000Z')
+    await saveGenerationResult(story)
+    const runtime = {
+      ...createInitialRuntimeState(story.story.storyGraph),
+      journalEntries: [{ nodeId: 'node_intro', text: '私人笔记' }],
+    }
+    await saveGameplay('story_replay', 'completed', runtime, 'ending')
+    await db.localPhotos.put({
+      id: 'local_photo_replay',
+      storyId: 'story_replay',
+      nodeId: 'node_intro',
+      taskId: 'task_1',
+      blob: new Blob(['photo'], { type: 'image/jpeg' }),
+      mimeType: 'image/jpeg',
+      width: 1,
+      height: 1,
+      size: 5,
+      createdAt: '2026-07-26T08:10:00.000Z',
+    })
+
+    await resetStoryProgress('story_replay')
+
+    expect(await db.storyRuns.get('story_replay')).toBeUndefined()
+    expect(
+      await db.journalEntries.where('storyId').equals('story_replay').count(),
+    ).toBe(0)
+    expect(
+      await db.localPhotos.where('storyId').equals('story_replay').count(),
+    ).toBe(0)
+    expect(
+      await db.syncQueue.where('kind').equals('story_completion').count(),
+    ).toBe(0)
+    expect(await db.stories.get('story_replay')).toMatchObject({
+      status: 'ready',
+      completedAt: null,
+    })
   })
 })

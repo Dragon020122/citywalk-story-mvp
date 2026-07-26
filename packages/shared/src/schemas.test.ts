@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ApiErrorSchema,
+  FeedbackRequestSchema,
   JourneyPreferencesSchema,
   PoiSchema,
   StoryGraphSchema,
@@ -274,5 +275,36 @@ describe('ApiErrorSchema', () => {
     })
 
     expect(result.success).toBe(true)
+  })
+})
+
+describe('FeedbackRequestSchema', () => {
+  it('validates the anonymous results feedback contract', () => {
+    const feedback = {
+      storyId: 'story-1',
+      routePackId: 'mock_route',
+      overallRating: 5,
+      storyCoherence: 4,
+      routeQuality: 5,
+      taskQuality: 4,
+      safetyFeeling: 5,
+      likedTags: ['剧情氛围'],
+      issueTags: [],
+      comment: '',
+      fallbackUsed: false,
+    }
+    expect(FeedbackRequestSchema.safeParse(feedback).success).toBe(true)
+    expect(
+      FeedbackRequestSchema.safeParse({
+        ...feedback,
+        overallRating: 6,
+      }).success,
+    ).toBe(false)
+    expect(
+      FeedbackRequestSchema.safeParse({
+        ...feedback,
+        phone: '13800000000',
+      }).success,
+    ).toBe(false)
   })
 })

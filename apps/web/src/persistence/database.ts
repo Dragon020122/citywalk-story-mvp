@@ -191,6 +191,44 @@ export async function deleteStoryCascade(
   )
 }
 
+export async function resetStoryProgress(
+  storyId: string,
+  database = db,
+): Promise<void> {
+  await database.transaction(
+    'rw',
+    database.stories,
+    database.storyRuns,
+    database.journalEntries,
+    database.localPhotos,
+    database.syncQueue,
+    async () => {
+      await Promise.all([
+        database.storyRuns.delete(storyId),
+        database.journalEntries.where('storyId').equals(storyId).delete(),
+        database.localPhotos.where('storyId').equals(storyId).delete(),
+      ])
+      const pendingCompletions = await database.syncQueue
+        .where('kind')
+        .equals('story_completion')
+        .filter(
+          (entry) =>
+            typeof entry.payload === 'object' &&
+            entry.payload !== null &&
+            'storyId' in entry.payload &&
+            entry.payload.storyId === storyId,
+        )
+        .primaryKeys()
+      await database.syncQueue.bulkDelete(pendingCompletions)
+      await database.stories.update(storyId, {
+        status: 'ready',
+        completedAt: null,
+        updatedAt: new Date().toISOString(),
+      })
+    },
+  )
+}
+
 export async function trimStoryHistory(
   limit = 5,
   database = db,

@@ -168,11 +168,31 @@ export const StoryNodeSchema = z.object({
 })
 export type StoryNode = z.infer<typeof StoryNodeSchema>
 
+export const SideQuestEndingStatusSchema = z.enum([
+  'locked',
+  'unlocked',
+  'completed',
+  'declined',
+])
+export type SideQuestEndingStatus = z.infer<
+  typeof SideQuestEndingStatusSchema
+>
+
+export const EndingConditionsSchema = z.object({
+  completedNodeIds: z.array(NonEmptyStringSchema).default([]),
+  minimumCompletedNodes: z.number().int().nonnegative().default(0),
+  sideQuest: z
+    .record(NonEmptyStringSchema, SideQuestEndingStatusSchema)
+    .default({}),
+})
+export type EndingConditions = z.infer<typeof EndingConditionsSchema>
+
 export const StoryEndingSchema = z.object({
   id: NonEmptyStringSchema,
   title: NonEmptyStringSchema,
   summary: NonEmptyStringSchema,
   requiredState: StateRequirementSchema,
+  conditions: EndingConditionsSchema.optional(),
 })
 export type StoryEnding = z.infer<typeof StoryEndingSchema>
 
