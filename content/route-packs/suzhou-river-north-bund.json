@@ -1,0 +1,21 @@
+{
+  "id": "suzhou-river-north-bund",
+  "name": "苏州河—北外滩路线包（待人工策展）",
+  "city": "上海",
+  "districts": ["静安区", "虹口区"],
+  "description": "用于组织该区域经人工核验的公共 POI；当前配置不包含正式地点或历史叙述。",
+  "center": {
+    "longitude": 121.486,
+    "latitude": 31.249
+  },
+  "supportedGenres": [
+    "mystery",
+    "healing",
+    "relationship",
+    "urban_fantasy"
+  ],
+  "themeTags": ["滨水步行", "城市观察", "开发占位"],
+  "minimumPoiCount": 5,
+  "recommendedDuration": 180,
+  "notice": "当前仅配套 mock 数据。上线前必须完成 POI 人工核验、来源记录与现场复核。"
+}

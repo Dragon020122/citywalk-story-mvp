@@ -1,0 +1,38 @@
+{
+  "valid": true,
+  "summary": {
+    "totalRows": 10,
+    "schemaValidPoiCount": 10,
+    "productionEligibleCount": 0,
+    "developmentMockCount": 10,
+    "errorCount": 0,
+    "warningCount": 2
+  },
+  "routePacks": [
+    {
+      "routePackId": "suzhou-river-north-bund",
+      "minimumPoiCount": 5,
+      "validPoiCount": 5,
+      "productionEligibleCount": 0,
+      "developmentMockCount": 5
+    },
+    {
+      "routePackId": "wukang-hunan",
+      "minimumPoiCount": 5,
+      "validPoiCount": 5,
+      "productionEligibleCount": 0,
+      "developmentMockCount": 5
+    }
+  ],
+  "errors": [],
+  "warnings": [
+    {
+      "code": "ROUTE_PACK_NOT_PRODUCTION_READY",
+      "message": "suzhou-river-north-bund has 0 verified POIs; mock POIs are development-only"
+    },
+    {
+      "code": "ROUTE_PACK_NOT_PRODUCTION_READY",
+      "message": "wukang-hunan has 0 verified POIs; mock POIs are development-only"
+    }
+  ]
+}

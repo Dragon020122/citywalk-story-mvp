@@ -16,20 +16,26 @@
     "build:web": "npm run build --workspace @citywalk/web",
     "build:api": "npm run build --workspace @citywalk/citywalk-api",
     "test": "npm run test:unit && npm run test:e2e",
-    "test:unit": "npm run test --workspaces --if-present",
+    "test:unit": "npm run test:content && npm run test --workspaces --if-present",
+    "test:content": "vitest run scripts --passWithNoTests",
     "test:e2e": "npm run test:e2e --workspace @citywalk/web",
     "lint": "eslint .",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "tsc -p tsconfig.scripts.json --noEmit && npm run typecheck --workspaces --if-present",
+    "content:validate": "tsx scripts/import-pois.ts content/pois/mock-pois.csv",
     "check": "npm run lint && npm run typecheck && npm run test:unit && npm run build",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@types/node": "^24.0.0",
     "concurrently": "^9.0.0",
     "eslint": "^9.0.0",
     "prettier": "^3.0.0",
-    "typescript-eslint": "^8.0.0"
+    "tsx": "^4.0.0",
+    "typescript": "^6.0.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^4.0.0"
   },
   "engines": {
     "node": ">=20",

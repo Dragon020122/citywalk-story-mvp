@@ -9,6 +9,7 @@ export const PoiVerificationStatusSchema = z.enum([
   'pending',
   'verified',
   'rejected',
+  'mock',
 ])
 export type PoiVerificationStatus = z.infer<
   typeof PoiVerificationStatusSchema
@@ -40,3 +41,6 @@ export const PoiSchema = z.object({
 })
 
 export type Poi = z.infer<typeof PoiSchema>
+
+export const isProductionPoi = (poi: Poi): boolean =>
+  poi.verificationStatus === 'verified'
