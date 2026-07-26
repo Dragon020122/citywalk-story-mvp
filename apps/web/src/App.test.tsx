@@ -19,7 +19,7 @@ describe('应用路由', () => {
   const routes = [
     ['/create', '建立漫游档案'],
     ['/generating', '正在编档'],
-    ['/story/mock_test/preview', '故事预览'],
+    ['/story/mock_demo_007/preview', '故事预览'],
     ['/story/mock_test/play', '漫游进行中'],
     ['/story/mock_test/inventory', '随身档案'],
     ['/story/mock_test/journal', '漫游手记'],
@@ -60,7 +60,7 @@ describe('首页交互与移动画布', () => {
 
     await user.click(screen.getByRole('link', { name: /开始生成/ }))
     expect(
-      screen.getByRole('heading', { name: '今晚，想进入哪一种城市？' }),
+      screen.getByRole('heading', { name: '选择路线区域' }),
     ).toBeInTheDocument()
   })
 

@@ -6,6 +6,7 @@ interface ScreenHeaderProps {
   title: string
   eyebrow?: string
   back?: boolean
+  onBack?: () => void
   onMenu?: () => void
 }
 
@@ -13,6 +14,7 @@ export function ScreenHeader({
   title,
   eyebrow,
   back = false,
+  onBack,
   onMenu,
 }: ScreenHeaderProps) {
   const navigate = useNavigate()
@@ -24,7 +26,7 @@ export function ScreenHeader({
           <IconButton
             label="返回上一页"
             icon={<ArrowLeft aria-hidden="true" />}
-            onClick={() => navigate(-1)}
+            onClick={() => (onBack ? onBack() : navigate(-1))}
           />
         ) : (
           <span className="brand-mark" aria-hidden="true">
