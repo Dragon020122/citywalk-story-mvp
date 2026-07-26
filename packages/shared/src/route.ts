@@ -26,6 +26,7 @@ export const RoutePlanSchema = z.object({
   totalStayMinutes: z.number().int().nonnegative(),
   totalEstimatedMinutes: z.number().int().nonnegative(),
   estimatedCostCny: z.number().nonnegative(),
+  degraded: z.boolean(),
 })
 
 export type RoutePlan = z.infer<typeof RoutePlanSchema>

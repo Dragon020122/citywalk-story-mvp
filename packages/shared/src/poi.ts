@@ -28,6 +28,7 @@ export const PoiSchema = z.object({
   publicAccess: z.boolean(),
   estimatedCostCny: z.number().min(0),
   stayMinutes: z.number().int().positive(),
+  walkMinutes: z.number().int().nonnegative(),
   tags: z.array(NonEmptyStringSchema),
   moodTags: z.array(NonEmptyStringSchema),
   storyHooks: z.array(NonEmptyStringSchema),

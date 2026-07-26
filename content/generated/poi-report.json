@@ -1,8 +1,10 @@
 {
   "valid": true,
+  "contentMode": "mock",
   "summary": {
     "totalRows": 10,
     "schemaValidPoiCount": 10,
+    "selectedPoiCount": 10,
     "productionEligibleCount": 0,
     "developmentMockCount": 10,
     "errorCount": 0,

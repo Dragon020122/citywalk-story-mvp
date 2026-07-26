@@ -21,6 +21,7 @@ const headers = [
   'publicAccess',
   'estimatedCostCny',
   'stayMinutes',
+  'walkMinutes',
   'tags',
   'moodTags',
   'storyHooks',
@@ -67,6 +68,7 @@ const createRecord = (
   publicAccess: 'true',
   estimatedCostCny: '0',
   stayMinutes: '15',
+  walkMinutes: '5',
   tags: ' development | test ',
   moodTags: 'quiet',
   storyHooks: 'fiction-only',
@@ -168,6 +170,22 @@ describe('POI content validation', () => {
 
     expect(
       result.report.errors.some((issue) => issue.code === 'FALLBACK_REQUIRED'),
+    ).toBe(true)
+  })
+
+  it('does not use mock POIs as fallback in verified mode', () => {
+    const csv = createCsv([
+      createRecord('mock_1', 'mock_2'),
+      createRecord('mock_2', 'mock_1'),
+    ])
+
+    const result = validatePoiCsv(csv, [routePack], 'verified')
+
+    expect(result.pois).toEqual([])
+    expect(
+      result.report.errors.some(
+        (issue) => issue.code === 'INSUFFICIENT_VERIFIED_POIS',
+      ),
     ).toBe(true)
   })
 })

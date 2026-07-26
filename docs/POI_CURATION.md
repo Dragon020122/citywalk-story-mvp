@@ -3,8 +3,19 @@
 ## 数据身份
 
 - `mock` 记录只用于单元测试和前端开发，ID 必须以 `mock_` 开头。
+- 当前项目暂时全部使用固定 Mock POI，以便路线、剧情、地图适配、状态机、离线存储和 API 开发持续进行。
 - 正式模式只能读取 `verificationStatus: verified` 的记录。
 - AI 不得创建正式 POI，也不得把 `mock`、`pending` 或 `unverified` 记录提升为 `verified`。
+- Mock 数据不代表真实地点已经核验，不得用于真实线下导航。
+
+## 内容模式
+
+服务端使用 `APP_CONTENT_MODE=mock | verified` 选择内容：
+
+- `mock` 只加载 `verificationStatus: mock` 的记录，用于本地开发、自动化测试和功能演示。
+- `verified` 只加载 `verificationStatus: verified` 的记录。任一路线包数量不足时必须返回 `INSUFFICIENT_VERIFIED_POIS`，不得自动使用 Mock 数据。
+
+业务模块只通过共享 `PoiSchema` 和 POI ID 使用地点数据，不得把具体地点名称写进路线算法、Story Graph、地图适配、状态机、离线存储或 CloudBase API 逻辑。
 
 ## 人工核验流程
 
@@ -49,3 +60,7 @@
 - 备用节点应满足相近时长、公众可达和安全条件，不能依赖同一处可能关闭的入口。
 - 导入器会检查引用存在性；路线运行时应优先选择 `verified` 备用节点。
 - `mock` 备用关系只用于开发，不得进入正式模式。
+
+## 正式发布门槛
+
+正式发布前必须完成真实 POI 核验、地址与坐标确认、腾讯地图路线联调、任务和备用节点现场验证，以及至少一次完整实地走测。详细阻塞项见 [`RELEASE_BLOCKERS.md`](RELEASE_BLOCKERS.md)。

@@ -3,9 +3,12 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { z } from 'zod'
 import {
+  ContentModeSchema,
+  filterPoisForContentMode,
   GenreSchema,
   GeoPointSchema,
   PoiSchema,
+  type ContentMode,
   type Poi,
 } from '../packages/shared/src/index.js'
 
@@ -68,9 +71,11 @@ export interface RoutePackValidationSummary {
 
 export interface PoiValidationReport {
   valid: boolean
+  contentMode: ContentMode
   summary: {
     totalRows: number
     schemaValidPoiCount: number
+    selectedPoiCount: number
     productionEligibleCount: number
     developmentMockCount: number
     errorCount: number
@@ -218,6 +223,7 @@ export const normalizePoiRecord = (record: CsvRecord): unknown => ({
   publicAccess: parseBooleanField(record.publicAccess ?? ''),
   estimatedCostCny: parseNumberField(record.estimatedCostCny ?? ''),
   stayMinutes: parseNumberField(record.stayMinutes ?? ''),
+  walkMinutes: parseNumberField(record.walkMinutes ?? ''),
   tags: parseArrayField(record.tags ?? ''),
   moodTags: parseArrayField(record.moodTags ?? ''),
   storyHooks: parseArrayField(record.storyHooks ?? ''),
@@ -375,6 +381,7 @@ const validatePoiRules = (poi: Poi): ValidationIssue[] => {
 export const validatePoiCsv = (
   csvText: string,
   routePacks: RoutePack[],
+  contentMode: ContentMode = 'mock',
 ): PoiValidationResult => {
   const records = parseCsv(csvText)
   const errors: ValidationIssue[] = []
@@ -487,29 +494,37 @@ export const validatePoiCsv = (
     }
   })
 
+  const selectedPois = filterPoisForContentMode(pois, contentMode)
+
   const routePackSummaries = routePacks.map((routePack) => {
-    const routePois = pois.filter(
-      (poi) =>
-        poi.routePackId === routePack.id &&
-        (poi.verificationStatus === 'verified' ||
-          poi.verificationStatus === 'mock'),
+    const allRoutePois = pois.filter(
+      (poi) => poi.routePackId === routePack.id,
     )
-    const productionEligibleCount = routePois.filter(
+    const routePois = selectedPois.filter(
+      (poi) => poi.routePackId === routePack.id,
+    )
+    const productionEligibleCount = allRoutePois.filter(
       (poi) => poi.verificationStatus === 'verified',
     ).length
-    const developmentMockCount = routePois.filter(
+    const developmentMockCount = allRoutePois.filter(
       (poi) => poi.verificationStatus === 'mock',
     ).length
 
     if (routePois.length < routePack.minimumPoiCount) {
       errors.push({
-        code: 'ROUTE_PACK_MINIMUM_POIS',
-        message: `${routePack.id} requires ${routePack.minimumPoiCount} valid POIs but has ${routePois.length}`,
+        code:
+          contentMode === 'verified'
+            ? 'INSUFFICIENT_VERIFIED_POIS'
+            : 'INSUFFICIENT_MOCK_POIS',
+        message: `${routePack.id} requires ${routePack.minimumPoiCount} ${contentMode} POIs but has ${routePois.length}; cross-mode fallback is disabled`,
         field: 'minimumPoiCount',
       })
     }
 
-    if (productionEligibleCount < routePack.minimumPoiCount) {
+    if (
+      contentMode === 'mock' &&
+      productionEligibleCount < routePack.minimumPoiCount
+    ) {
       warnings.push({
         code: 'ROUTE_PACK_NOT_PRODUCTION_READY',
         message: `${routePack.id} has ${productionEligibleCount} verified POIs; mock POIs are development-only`,
@@ -533,12 +548,14 @@ export const validatePoiCsv = (
   ).length
 
   return {
-    pois,
+    pois: selectedPois,
     report: {
       valid: errors.length === 0,
+      contentMode,
       summary: {
         totalRows: records.length,
         schemaValidPoiCount: pois.length,
+        selectedPoiCount: selectedPois.length,
         productionEligibleCount,
         developmentMockCount,
         errorCount: errors.length,
@@ -603,12 +620,15 @@ const runCli = async (): Promise<void> => {
     readFile(inputPath, 'utf8'),
     loadRoutePacks(routePackDirectory),
   ])
-  const result = validatePoiCsv(csvText, routePacks)
+  const contentMode = ContentModeSchema.parse(
+    process.env.APP_CONTENT_MODE ?? 'mock',
+  )
+  const result = validatePoiCsv(csvText, routePacks, contentMode)
   await writeGeneratedContent(outputDirectory, result)
 
   const summary = result.report.summary
   console.log(
-    `POI validation: ${summary.schemaValidPoiCount}/${summary.totalRows} schema-valid, ${summary.productionEligibleCount} verified, ${summary.developmentMockCount} mock, ${summary.errorCount} errors, ${summary.warningCount} warnings`,
+    `POI validation (${result.report.contentMode}): ${summary.schemaValidPoiCount}/${summary.totalRows} schema-valid, ${summary.selectedPoiCount} selected, ${summary.productionEligibleCount} verified, ${summary.developmentMockCount} mock, ${summary.errorCount} errors, ${summary.warningCount} warnings`,
   )
 
   if (!result.report.valid) {

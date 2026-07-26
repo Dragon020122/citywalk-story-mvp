@@ -12,6 +12,7 @@
     "publicAccess": true,
     "estimatedCostCny": 0,
     "stayMinutes": 15,
+    "walkMinutes": 5,
     "tags": [
       "development",
       "mock"
@@ -56,6 +57,7 @@
     "publicAccess": true,
     "estimatedCostCny": 50,
     "stayMinutes": 20,
+    "walkMinutes": 5,
     "tags": [
       "development",
       "mock"
@@ -100,6 +102,7 @@
     "publicAccess": true,
     "estimatedCostCny": 0,
     "stayMinutes": 15,
+    "walkMinutes": 5,
     "tags": [
       "development",
       "mock"
@@ -144,6 +147,7 @@
     "publicAccess": true,
     "estimatedCostCny": 0,
     "stayMinutes": 20,
+    "walkMinutes": 5,
     "tags": [
       "development",
       "mock"
@@ -188,6 +192,7 @@
     "publicAccess": true,
     "estimatedCostCny": 100,
     "stayMinutes": 25,
+    "walkMinutes": 5,
     "tags": [
       "development",
       "mock"
@@ -232,6 +237,7 @@
     "publicAccess": true,
     "estimatedCostCny": 0,
     "stayMinutes": 15,
+    "walkMinutes": 5,
     "tags": [
       "development",
       "mock"
@@ -276,6 +282,7 @@
     "publicAccess": true,
     "estimatedCostCny": 0,
     "stayMinutes": 20,
+    "walkMinutes": 5,
     "tags": [
       "development",
       "mock"
@@ -320,6 +327,7 @@
     "publicAccess": true,
     "estimatedCostCny": 50,
     "stayMinutes": 20,
+    "walkMinutes": 5,
     "tags": [
       "development",
       "mock"
@@ -364,6 +372,7 @@
     "publicAccess": true,
     "estimatedCostCny": 0,
     "stayMinutes": 15,
+    "walkMinutes": 5,
     "tags": [
       "development",
       "mock"
@@ -408,6 +417,7 @@
     "publicAccess": true,
     "estimatedCostCny": 0,
     "stayMinutes": 25,
+    "walkMinutes": 5,
     "tags": [
       "development",
       "mock"

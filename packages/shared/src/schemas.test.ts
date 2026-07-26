@@ -26,7 +26,7 @@ const validPreferences = {
 } as const
 
 const validPoi: Poi = {
-  id: 'poi-1',
+  id: 'mock_test_poi_1',
   routePackId: 'shanghai-hidden-lanes',
   name: '经核验的公共地点',
   shortName: '公共地点',
@@ -38,15 +38,16 @@ const validPoi: Poi = {
   publicAccess: true,
   estimatedCostCny: 0,
   stayMinutes: 20,
+  walkMinutes: 5,
   tags: ['architecture'],
   moodTags: ['quiet'],
   storyHooks: ['historic-detail'],
   taskHooks: ['observe-facade'],
   observationAnchors: ['main-entrance'],
   safetyNotes: ['stay-on-public-path'],
-  verificationStatus: 'verified',
-  verifiedAt: '2026-07-26T08:00:00+08:00',
-  sourceUrls: ['https://example.cn/verified-poi'],
+  verificationStatus: 'mock',
+  verifiedAt: null,
+  sourceUrls: [],
   fallbackPoiIds: [],
 }
 
@@ -129,6 +130,7 @@ const validRoutePlan: RoutePlan = {
   totalStayMinutes: 20,
   totalEstimatedMinutes: 20,
   estimatedCostCny: 0,
+  degraded: false,
 }
 
 describe('JourneyPreferencesSchema', () => {
