@@ -1147,6 +1147,7 @@ legend {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
 }
 
 .play-route-heading .archive-label {
@@ -1155,6 +1156,18 @@ legend {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.play-route-heading__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.play-route-heading__actions .button {
+  min-height: 36px;
+  padding: 6px 8px;
+  font-size: 9px;
 }
 
 .current-poi-card h1 {

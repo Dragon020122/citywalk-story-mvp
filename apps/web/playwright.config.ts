@@ -8,8 +8,25 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'mobile-chromium',
-      use: { ...devices['Desktop Chrome'] },
+      name: 'iPhone SE',
+      use: { ...devices['iPhone SE'], browserName: 'chromium' },
+    },
+    {
+      name: 'iPhone 13',
+      use: { ...devices['iPhone 13'], browserName: 'chromium' },
+    },
+    {
+      name: 'Pixel 7',
+      use: { ...devices['Pixel 7'] },
+    },
+    {
+      name: '390x844',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 390, height: 844 },
+        hasTouch: true,
+        isMobile: true,
+      },
     },
   ],
   webServer: {

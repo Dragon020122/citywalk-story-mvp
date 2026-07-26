@@ -39,7 +39,7 @@ for (const width of [360, 375, 390, 430]) {
 
 test('home actions and 404', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('link', { name: /开始生成/ }).click()
+  await page.locator('a[href="/create"]').first().click()
   await expect(page).toHaveURL(/\/create$/)
   await page.goto('/history')
   await expect(page.getByText('ARCHIVE INDEX')).toBeVisible()

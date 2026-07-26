@@ -4,6 +4,7 @@ import {
   BASE_RETRY_DELAY_MS,
   enqueueSync,
   processSyncQueue,
+  queueAnonymousEvent,
   queueFeedback,
 } from './sync-queue'
 
@@ -69,5 +70,54 @@ describe('离线同步队列', () => {
       storyId: 'story_offline_feedback',
       overallRating: 4,
     })
+  })
+
+  it('默认处理器向三个受校验的 API 路径同步 JSON', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await queueAnonymousEvent('offline_open', { cachedStories: 1 })
+    await enqueueSync('story_completion', {
+      storyId: 'story_sync',
+      endingId: 'ending_sync',
+      completedAt: '2026-07-26T08:00:00+08:00',
+    })
+    await queueFeedback({
+      storyId: 'story_sync',
+      routePackId: 'mock_route',
+      overallRating: 5,
+      storyCoherence: 5,
+      routeQuality: 5,
+      taskQuality: 5,
+      safetyFeeling: 5,
+      likedTags: [],
+      issueTags: [],
+      comment: '',
+      fallbackUsed: false,
+    })
+
+    await expect(processSyncQueue()).resolves.toMatchObject({
+      processed: 3,
+      succeeded: 3,
+      failed: 0,
+    })
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
+      '/v1/events',
+      '/v1/stories/story_sync/completion',
+      '/v1/feedback',
+    ])
+    expect(
+      fetchMock.mock.calls.every(([, init]) => init?.method === 'POST'),
+    ).toBe(true)
+  })
+
+  it('默认处理器将非成功 HTTP 响应留在队列重试', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(null, { status: 503 })),
+    )
+    await queueAnonymousEvent('offline_open')
+    const result = await processSyncQueue({ now: 2_000 })
+    expect(result.failed).toBe(1)
+    expect((await db.syncQueue.toArray())[0]?.lastError).toContain('503')
   })
 })

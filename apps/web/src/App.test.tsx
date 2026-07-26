@@ -29,24 +29,24 @@ describe('应用路由', () => {
   ] as const
 
   routes.forEach(([path, title]) => {
-    it(`渲染 ${path}`, () => {
+    it(`渲染 ${path}`, async () => {
       renderRoute(path)
       expect(
-        screen.getByText(title, { selector: 'strong' }),
+        await screen.findByText(title, { selector: 'strong' }),
       ).toBeInTheDocument()
     })
   })
 
-  it('渲染离线页', () => {
+  it('渲染离线页', async () => {
     renderRoute('/offline')
     expect(
-      screen.getByRole('heading', { name: '你暂时离开了网络' }),
+      await screen.findByRole('heading', { name: '你暂时离开了网络' }),
     ).toBeInTheDocument()
   })
 
-  it('未知路由显示 404', () => {
+  it('未知路由显示 404', async () => {
     renderRoute('/missing-archive')
-    expect(screen.getByText('404 / NOT FOUND')).toBeInTheDocument()
+    expect(await screen.findByText('404 / NOT FOUND')).toBeInTheDocument()
     expect(
       screen.getByRole('heading', { name: '这条暗线没有被收录' }),
     ).toBeInTheDocument()

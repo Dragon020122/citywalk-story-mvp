@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --config vitest.coverage.config.ts",
     "test:e2e": "playwright test --pass-with-no-tests"
   },
   "dependencies": {

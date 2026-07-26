@@ -6,7 +6,7 @@ import { ArchiveLabel, Chip, StatusBadge } from '../components/Labels'
 import { PageShell } from '../components/PageShell'
 import { genreOptions } from '../journey-options'
 import { savePendingGeneration } from '../journey-storage'
-import { RouteMap } from '../maps/RouteMap'
+import { LazyRouteMap } from '../maps/LazyRouteMap'
 import { useStoredStory } from '../persistence/hooks'
 
 const nodeTypeLabels: Record<string, string> = {
@@ -242,7 +242,7 @@ export function PreviewPage() {
                 <span>预算 ¥{result.preferences.budgetCny}</span>
               </div>
             </Card>
-            <RouteMap
+            <LazyRouteMap
               routePlan={result.routePlan}
               currentPoiId={result.routePlan.selectedPois[0]?.id}
               nextPoiId={result.routePlan.selectedPois[1]?.id}

@@ -276,6 +276,7 @@ export function createEndingCalculationInput(
     const match = /^sideQuest:(.+):(unlocked|completed)$/.exec(key)
     if (match?.[1]) sideQuestIds.add(match[1])
   })
+  runtime.completedNodeIds.forEach((id) => sideQuestIds.add(id))
   runtime.sideQuestReturnNodeIds.forEach((id) => sideQuestIds.add(id))
   runtime.declinedSideQuestNodeIds.forEach((id) => sideQuestIds.add(id))
 

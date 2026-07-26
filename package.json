@@ -17,11 +17,13 @@
     "build:api": "npm run build --workspace @citywalk/citywalk-api",
     "test": "npm run test:unit && npm run test:e2e",
     "test:unit": "npm run test:content && npm run test --workspaces --if-present",
+    "test:coverage": "npm run test:coverage --workspace @citywalk/shared && npm run test:coverage --workspace @citywalk/citywalk-api && npm run test:coverage --workspace @citywalk/web",
     "test:content": "vitest run scripts --passWithNoTests",
     "test:e2e": "npm run test:e2e --workspace @citywalk/web",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.scripts.json --noEmit && npm run typecheck --workspaces --if-present",
     "content:validate": "tsx scripts/import-pois.ts content/pois/mock-pois.csv",
+    "release:audit": "tsx scripts/release-audit.ts",
     "check": "npm run lint && npm run typecheck && npm run test:unit && npm run build",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
@@ -29,6 +31,7 @@
   "devDependencies": {
     "@eslint/js": "^9.0.0",
     "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^4.1.10",
     "concurrently": "^9.0.0",
     "eslint": "^9.0.0",
     "prettier": "^3.0.0",

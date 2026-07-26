@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query'
 import {
   Compass,
   Copy,
+  FolderOpen,
   Navigation,
   Pause,
   Play,
@@ -28,7 +29,7 @@ import {
   type GenerationResult,
 } from '../journey-storage'
 import { copyPoiAddress, openTencentNavigation } from '../maps/navigation'
-import { RouteMap } from '../maps/RouteMap'
+import { LazyRouteMap } from '../maps/LazyRouteMap'
 import { useStoredGameplay } from '../persistence/hooks'
 
 const stateLabels = {
@@ -234,17 +235,26 @@ function GameplayScreen({
       {!online && <OfflineBanner />}
       <div className="play-route-heading">
         <ArchiveLabel>{storyId}</ArchiveLabel>
-        <StatusBadge
-          tone={
-            state === 'error' || state === 'abandoned' ? 'danger' : 'success'
-          }
-        >
-          {stateLabels[state]}
-        </StatusBadge>
+        <span className="play-route-heading__actions">
+          <Link
+            className="button button--quiet"
+            to={`/story/${storyId}/inventory`}
+          >
+            <FolderOpen aria-hidden="true" />
+            线索背包
+          </Link>
+          <StatusBadge
+            tone={
+              state === 'error' || state === 'abandoned' ? 'danger' : 'success'
+            }
+          >
+            {stateLabels[state]}
+          </StatusBadge>
+        </span>
       </div>
 
       {currentPoi && (
-        <RouteMap
+        <LazyRouteMap
           routePlan={result.routePlan}
           currentPoiId={currentPoi.id}
           nextPoiId={nextPoi?.id}
