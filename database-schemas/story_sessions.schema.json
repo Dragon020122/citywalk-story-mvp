@@ -7,7 +7,10 @@
     "id",
     "storyId",
     "clientIdHash",
-    "storyRun",
+    "preferences",
+    "routePlan",
+    "blueprint",
+    "storyGraph",
     "createdAt",
     "updatedAt"
   ],
@@ -15,7 +18,10 @@
     "id": { "type": "string", "minLength": 1 },
     "storyId": { "type": "string", "minLength": 1 },
     "clientIdHash": { "type": "string", "minLength": 64, "maxLength": 64 },
-    "storyRun": { "type": "object" },
+    "preferences": { "type": "object" },
+    "routePlan": { "type": "object" },
+    "blueprint": { "type": "object" },
+    "storyGraph": { "type": "object" },
     "createdAt": { "type": "string", "format": "date-time" },
     "updatedAt": { "type": "string", "format": "date-time" }
   },

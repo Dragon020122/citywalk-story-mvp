@@ -26,7 +26,7 @@ const EnvironmentSchema = z.object({
   RATE_LIMIT_COMMON_PER_MINUTE:
     PositiveIntegerStringSchema.default(30),
   STORY_CACHE_TTL_HOURS: PositiveIntegerStringSchema.default(24),
-  REQUEST_TIMEOUT_MS: PositiveIntegerStringSchema.default(10_000),
+  REQUEST_TIMEOUT_MS: PositiveIntegerStringSchema.default(65_000),
   JSON_BODY_LIMIT: z.string().trim().min(1).default('64kb'),
   PORT: PositiveIntegerStringSchema.default(3000),
   POI_DATA_VERSION: z.string().trim().min(1).default('mock-v1'),

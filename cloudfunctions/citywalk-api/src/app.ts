@@ -4,10 +4,24 @@ import helmet from 'helmet'
 import { nanoid } from 'nanoid'
 import {
   FeedbackRequestSchema,
+  GenerateStoryRequestSchema,
+  GenerateStoryResponseSchema,
   PlanRouteRequestSchema,
   PlanRouteResponseSchema,
+  RegenerateNodeRequestSchema,
+  RegenerateNodeResponseSchema,
   RoutePlanningError,
 } from '@citywalk/shared'
+import {
+  AiClientError,
+  AiOutputParseError,
+  BlueprintValidationError,
+  CloudBaseAiClient,
+  DefaultStoryWorkflow,
+  regenerateNodeCopy,
+  type AiTextClient,
+  type StoryWorkflow,
+} from './ai/index.js'
 import { loadConfig, type AppConfig } from './config.js'
 import { HttpError } from './http-error.js'
 import { consoleLogger } from './logger.js'
@@ -40,6 +54,8 @@ export interface AppDependencies {
   mapProvider: MapRouteProvider
   logger: ApiLogger
   now: () => Date
+  storyWorkflow?: StoryWorkflow | null
+  aiClient?: AiTextClient | null
 }
 
 const asyncHandler = (
@@ -77,6 +93,21 @@ export const createDefaultDependencies = (
       : new TencentMapRouteProvider({
           apiKey: config.tencentMapServerKey,
         })
+  const aiClient = config.cloudbaseEnvironmentId
+    ? new CloudBaseAiClient({
+        environmentId: config.cloudbaseEnvironmentId,
+        modelName: config.aiModel,
+      })
+    : null
+  const storyWorkflow = aiClient
+    ? new DefaultStoryWorkflow({
+        aiClient,
+        cache: repositories.generationCache,
+        cacheTtlHours: config.storyCacheTtlHours,
+        poiDataVersion: config.poiDataVersion,
+        now: () => new Date(),
+      })
+    : null
 
   return {
     config,
@@ -85,6 +116,8 @@ export const createDefaultDependencies = (
     mapProvider,
     logger: consoleLogger,
     now: () => new Date(),
+    aiClient,
+    storyWorkflow,
   }
 }
 
@@ -131,7 +164,7 @@ export const createApp = (
       status: 'ok',
       version: config.version,
       environment: config.nodeEnvironment,
-      aiEnabled: false,
+      aiEnabled: Boolean(dependencies.storyWorkflow),
       mapEnabled: Boolean(config.tencentMapServerKey),
       databaseEnabled: repositories.databaseStatus.enabled,
     })
@@ -185,7 +218,44 @@ export const createApp = (
       windowMs: HOUR_MS,
       now: dependencies.now,
     }),
-    createNotImplementedHandler('Story generation'),
+    ...(dependencies.storyWorkflow
+      ? [
+          validateBody(GenerateStoryRequestSchema),
+          asyncHandler(async (request, response) => {
+          try {
+            const result = await dependencies.storyWorkflow!.generate(
+              request.body,
+            )
+            const now = dependencies.now().toISOString()
+            await repositories.storySessions.save({
+              id: result.blueprint.storyId,
+              storyId: result.blueprint.storyId,
+              clientIdHash: String(response.locals.clientIdHash),
+              preferences: request.body.preferences,
+              routePlan: request.body.routePlan,
+              blueprint: result.blueprint,
+              storyGraph: result.storyGraph,
+              createdAt: now,
+              updatedAt: now,
+            })
+            response.json(GenerateStoryResponseSchema.parse(result))
+          } catch (error) {
+            if (
+              error instanceof AiClientError ||
+              error instanceof AiOutputParseError ||
+              error instanceof BlueprintValidationError
+            ) {
+              throw new HttpError({
+                statusCode: 502,
+                code: 'AI_GENERATION_ERROR',
+                message: 'Story generation failed',
+              })
+            }
+            throw error
+          }
+          }),
+        ]
+      : [createNotImplementedHandler('Story generation')]),
   )
   app.post(
     '/v1/stories/:storyId/nodes/:nodeId/regenerate',
@@ -196,7 +266,74 @@ export const createApp = (
       windowMs: HOUR_MS,
       now: dependencies.now,
     }),
-    createNotImplementedHandler('Node regeneration'),
+    ...(dependencies.aiClient
+      ? [
+          validateBody(RegenerateNodeRequestSchema),
+          asyncHandler(async (request, response) => {
+          const storyId = Array.isArray(request.params.storyId)
+            ? request.params.storyId[0]
+            : request.params.storyId
+          const nodeId = Array.isArray(request.params.nodeId)
+            ? request.params.nodeId[0]
+            : request.params.nodeId
+          const session = storyId
+            ? await repositories.storySessions.get(storyId)
+            : null
+          if (!session || !nodeId) {
+            throw new HttpError({
+              statusCode: 404,
+              code: 'STORY_NOT_FOUND',
+              message: 'Story or node not found',
+            })
+          }
+          const node = session.storyGraph.nodes.find(
+            (candidate) => candidate.id === nodeId,
+          )
+          if (!node) {
+            throw new HttpError({
+              statusCode: 404,
+              code: 'STORY_NOT_FOUND',
+              message: 'Story or node not found',
+            })
+          }
+          try {
+            const regenerated = await regenerateNodeCopy({
+              aiClient: dependencies.aiClient!,
+              node,
+              reason: request.body.reason,
+            })
+            const storyGraph = {
+              ...session.storyGraph,
+              nodes: session.storyGraph.nodes.map((candidate) =>
+                candidate.id === nodeId ? regenerated : candidate,
+              ),
+            }
+            await repositories.storySessions.save({
+              ...session,
+              storyGraph,
+              updatedAt: dependencies.now().toISOString(),
+            })
+            response.json(
+              RegenerateNodeResponseSchema.parse({
+                node: regenerated,
+              }),
+            )
+          } catch (error) {
+            if (
+              error instanceof AiClientError ||
+              error instanceof AiOutputParseError
+            ) {
+              throw new HttpError({
+                statusCode: 502,
+                code: 'AI_GENERATION_ERROR',
+                message: 'Node regeneration failed',
+              })
+            }
+            throw error
+          }
+          }),
+        ]
+      : [createNotImplementedHandler('Node regeneration')]),
   )
   app.post(
     '/v1/stories/:storyId/reroute',

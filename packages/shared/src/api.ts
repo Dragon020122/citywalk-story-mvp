@@ -54,16 +54,15 @@ export type GenerateStoryRequest = z.infer<
 export const GenerateStoryResponseSchema = z.object({
   blueprint: StoryBlueprintSchema,
   storyGraph: StoryGraphSchema,
+  fallbackUsed: z.boolean(),
+  fallbackReason: z.literal('STORY_GRAPH_INVALID').nullable(),
 })
 export type GenerateStoryResponse = z.infer<
   typeof GenerateStoryResponseSchema
 >
 
 export const RegenerateNodeRequestSchema = z.object({
-  storyId: NonEmptyStringSchema,
-  nodeId: NonEmptyStringSchema,
   reason: NonEmptyStringSchema.optional(),
-  storyRun: StoryRunSchema,
 })
 export type RegenerateNodeRequest = z.infer<
   typeof RegenerateNodeRequestSchema

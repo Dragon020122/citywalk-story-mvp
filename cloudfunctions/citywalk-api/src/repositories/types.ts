@@ -1,10 +1,19 @@
-import type { FeedbackRequest, StoryRun } from '@citywalk/shared'
+import type {
+  FeedbackRequest,
+  JourneyPreferences,
+  RoutePlan,
+  StoryBlueprint,
+  StoryGraph,
+} from '@citywalk/shared'
 
 export interface StorySessionRecord {
   id: string
   storyId: string
   clientIdHash: string
-  storyRun: StoryRun
+  preferences: JourneyPreferences
+  routePlan: RoutePlan
+  blueprint: StoryBlueprint
+  storyGraph: StoryGraph
   createdAt: string
   updatedAt: string
 }
