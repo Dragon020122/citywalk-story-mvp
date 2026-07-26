@@ -1,0 +1,22 @@
+{
+  "story_sessions": {
+    "read": false,
+    "write": false
+  },
+  "generation_cache": {
+    "read": false,
+    "write": false
+  },
+  "feedback": {
+    "read": false,
+    "write": false
+  },
+  "rate_limits": {
+    "read": false,
+    "write": false
+  },
+  "telemetry_events": {
+    "read": false,
+    "write": false
+  }
+}

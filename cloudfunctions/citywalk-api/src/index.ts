@@ -1,11 +1,9 @@
-import cors from 'cors'
-import express from 'express'
-import helmet from 'helmet'
+import { createApp } from './app.js'
 
-export const app = express()
+export const app = createApp()
 
-app.use(helmet())
-app.use(cors())
-app.use(express.json())
-
+export * from './app.js'
+export * from './config.js'
+export * from './poi-source.js'
+export * from './repositories/index.js'
 export * from './route/index.js'

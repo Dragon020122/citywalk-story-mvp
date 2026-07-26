@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "generation_cache",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["key", "value", "expiresAt", "createdAt"],
+  "properties": {
+    "key": { "type": "string", "minLength": 1 },
+    "value": {},
+    "expiresAt": { "type": "string", "format": "date-time" },
+    "createdAt": { "type": "string", "format": "date-time" }
+  },
+  "indexes": [
+    { "fields": ["expiresAt"], "unique": false }
+  ],
+  "clientPermissions": {
+    "read": false,
+    "write": false
+  }
+}

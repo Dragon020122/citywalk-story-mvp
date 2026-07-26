@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "feedback",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "clientIdHash", "feedback", "createdAt"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "clientIdHash": { "type": "string", "minLength": 64, "maxLength": 64 },
+    "feedback": {
+      "type": "object",
+      "required": ["storyId", "rating", "tags"],
+      "properties": {
+        "storyId": { "type": "string", "minLength": 1 },
+        "rating": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "comment": { "type": "string", "maxLength": 2000 },
+        "context": { "type": "object" }
+      }
+    },
+    "createdAt": { "type": "string", "format": "date-time" }
+  },
+  "indexes": [
+    { "fields": ["feedback.storyId"], "unique": false },
+    { "fields": ["createdAt"], "unique": false }
+  ],
+  "clientPermissions": {
+    "read": false,
+    "write": false
+  }
+}

@@ -6,7 +6,7 @@ import type {
 import { MapRouteProviderError } from './map-route-provider.js'
 
 export interface TencentMapRouteProviderOptions {
-  apiKey?: string
+  apiKey?: string | undefined
 }
 
 export class TencentMapRouteProvider implements MapRouteProvider {

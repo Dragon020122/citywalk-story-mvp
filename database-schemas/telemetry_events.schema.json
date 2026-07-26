@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "telemetry_events",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "eventName",
+    "requestId",
+    "clientIdHash",
+    "properties",
+    "createdAt"
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "eventName": { "type": "string", "minLength": 1 },
+    "requestId": { "type": "string", "minLength": 1 },
+    "clientIdHash": { "type": "string", "minLength": 64, "maxLength": 64 },
+    "properties": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["boolean", "number", "string"]
+      }
+    },
+    "createdAt": { "type": "string", "format": "date-time" }
+  },
+  "indexes": [
+    { "fields": ["eventName", "createdAt"], "unique": false },
+    { "fields": ["requestId"], "unique": false }
+  ],
+  "clientPermissions": {
+    "read": false,
+    "write": false
+  }
+}

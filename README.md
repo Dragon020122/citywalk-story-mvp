@@ -26,9 +26,12 @@ APP_CONTENT_MODE=mock
 
 ```bash
 npm run dev
+npm run dev:api
 npm run content:validate
 npm run check
 ```
+
+`npm run dev:api` 默认在 `http://localhost:3000` 启动本地 Express API，可通过 `GET /health` 检查运行状态。环境变量从本机运行环境注入，参考 `.env.example`；服务端密钥不得使用 `VITE_` 前缀。
 
 ## 正式发布前
 

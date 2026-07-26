@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "rate_limits",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["key", "count", "windowStartedAt", "expiresAt"],
+  "properties": {
+    "key": { "type": "string", "minLength": 1 },
+    "count": { "type": "integer", "minimum": 1 },
+    "windowStartedAt": { "type": "string", "format": "date-time" },
+    "expiresAt": { "type": "string", "format": "date-time" }
+  },
+  "indexes": [
+    { "fields": ["expiresAt"], "unique": false }
+  ],
+  "clientPermissions": {
+    "read": false,
+    "write": false
+  }
+}
