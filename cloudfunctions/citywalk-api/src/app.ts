@@ -93,14 +93,16 @@ export const createDefaultDependencies = (
     logger: consoleLogger,
   })
   const mapProvider =
-    (config.nodeEnvironment === 'development' ||
+    config.contentMode === 'mock' ||
+    ((config.nodeEnvironment === 'development' ||
       config.nodeEnvironment === 'test') &&
-    !config.tencentMapServerKey
+      !config.tencentMapServerKey)
       ? new MockMapRouteProvider()
       : new TencentMapRouteProvider({
           apiKey: config.tencentMapServerKey,
         })
-  const aiClient = config.cloudbaseEnvironmentId
+  const aiClient =
+    config.contentMode === 'verified' && config.cloudbaseEnvironmentId
     ? new CloudBaseAiClient({
         environmentId: config.cloudbaseEnvironmentId,
         modelName: config.aiModel,
@@ -174,7 +176,9 @@ export const createApp = (
       version: config.version,
       environment: config.nodeEnvironment,
       aiEnabled: Boolean(dependencies.aiClient),
-      mapEnabled: Boolean(config.tencentMapServerKey),
+      mapEnabled:
+        config.contentMode === 'verified' &&
+        Boolean(config.tencentMapServerKey),
       databaseEnabled: repositories.databaseStatus.enabled,
     })
   })

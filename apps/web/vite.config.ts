@@ -3,11 +3,13 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  base: '/',
   server: {
     proxy: {
-      '/v1': {
+      '/api': {
         target: 'http://127.0.0.1:3000',
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/u, ''),
       },
     },
   },
@@ -44,7 +46,7 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/v1\//],
+        navigateFallbackDenylist: [/^\/api\//],
         globPatterns: ['**/*.{js,css,html,svg}'],
         cleanupOutdatedCaches: true,
         clientsClaim: true,

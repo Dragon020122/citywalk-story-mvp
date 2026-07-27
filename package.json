@@ -21,7 +21,7 @@
     "test:content": "vitest run scripts --passWithNoTests",
     "test:e2e": "npm run test:e2e --workspace @citywalk/web",
     "lint": "eslint .",
-    "typecheck": "tsc -p tsconfig.scripts.json --noEmit && npm run typecheck --workspaces --if-present",
+    "typecheck": "tsc -p tsconfig.scripts.json --noEmit && tsc -p tsconfig.edgeone.json --noEmit && npm run typecheck --workspaces --if-present",
     "content:validate": "tsx scripts/import-pois.ts content/pois/mock-pois.csv",
     "release:audit": "tsx scripts/release-audit.ts",
     "check": "npm run lint && npm run typecheck && npm run test:unit && npm run build",

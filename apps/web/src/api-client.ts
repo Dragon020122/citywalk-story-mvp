@@ -11,6 +11,7 @@ import {
   type RerouteResponse,
   type RoutePlan,
 } from '@citywalk/shared'
+import { apiUrl } from './api-base'
 
 export class ApiRequestError extends Error {
   readonly status: number
@@ -31,7 +32,7 @@ async function postJson(
 ): Promise<unknown> {
   let response: Response
   try {
-    response = await fetch(path, {
+    response = await fetch(apiUrl(path), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

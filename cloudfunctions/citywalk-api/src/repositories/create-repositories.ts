@@ -82,11 +82,12 @@ export const createRepositories = (options: {
   logger: ApiLogger
 }): RepositoryBundle => {
   const fallback = createFallbackRepositories(options.logger)
+  const contentMode = options.environment.APP_CONTENT_MODE ?? 'mock'
   const environmentId = options.environment.CLOUDBASE_ENV_ID?.trim()
   const isDevelopment =
     (options.environment.NODE_ENV ?? 'development') === 'development'
 
-  if (!environmentId || isDevelopment) {
+  if (contentMode === 'mock' || !environmentId || isDevelopment) {
     return fallback
   }
 

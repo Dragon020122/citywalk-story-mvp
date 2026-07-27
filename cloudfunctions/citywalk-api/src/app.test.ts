@@ -3,6 +3,7 @@ import {
   type JourneyPreferences,
   type Poi,
 } from '@citywalk/shared'
+import express from 'express'
 import supertest from 'supertest'
 import { describe, expect, it } from 'vitest'
 import {
@@ -96,8 +97,10 @@ const createTestDependencies = (
 describe('CloudBase HTTP API foundation', () => {
   it('uses server-side Mock story generation only in mock content mode', () => {
     const mockDependencies = createDefaultDependencies({
-      NODE_ENV: 'development',
+      NODE_ENV: 'production',
       APP_CONTENT_MODE: 'mock',
+      CLOUDBASE_ENV_ID: 'mock-environment',
+      TENCENT_MAP_SERVER_KEY: 'server-key-must-not-be-used',
     })
     const verifiedDependencies = createDefaultDependencies({
       NODE_ENV: 'development',
@@ -106,6 +109,8 @@ describe('CloudBase HTTP API foundation', () => {
 
     expect(mockDependencies.aiClient).toBeNull()
     expect(mockDependencies.storyWorkflow).toBeDefined()
+    expect(mockDependencies.mapProvider).toBeInstanceOf(MockMapRouteProvider)
+    expect(mockDependencies.repositories.databaseStatus.enabled).toBe(false)
     expect(verifiedDependencies.aiClient).toBeNull()
     expect(verifiedDependencies.storyWorkflow).toBeNull()
   })
@@ -161,6 +166,28 @@ describe('CloudBase HTTP API foundation', () => {
     expect(storyResponse.status).toBe(200)
     expect(storyResponse.body.fallbackUsed).toBe(true)
     expect(storyResponse.body.blueprint.storyId).toMatch(/^story_route_/u)
+  })
+
+  it('serves the EdgeOne /api catch-all without changing Express routes', async () => {
+    const dependencies = createTestDependencies()
+    dependencies.storyWorkflow = new MockStoryWorkflow()
+    const edgeOneMountedApp = express()
+    edgeOneMountedApp.use('/api', createApp(dependencies))
+    const client = supertest(edgeOneMountedApp)
+
+    const healthResponse = await client.get('/api/health')
+    const routeResponse = await client
+      .post('/api/v1/routes/plan')
+      .set('x-device-id', 'edgeone-mounted-device')
+      .send({ preferences })
+    const storyResponse = await client
+      .post('/api/v1/stories/generate')
+      .set('x-device-id', 'edgeone-mounted-device')
+      .send({ preferences, routePlan: routeResponse.body.routePlan })
+
+    expect(healthResponse.status).toBe(200)
+    expect(routeResponse.status).toBe(200)
+    expect(storyResponse.status).toBe(200)
   })
 
   it('rejects an invalid route request with a normalized error', async () => {

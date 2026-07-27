@@ -101,9 +101,9 @@ describe('离线同步队列', () => {
       failed: 0,
     })
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
-      '/v1/events',
-      '/v1/stories/story_sync/completion',
-      '/v1/feedback',
+      '/api/v1/events',
+      '/api/v1/stories/story_sync/completion',
+      '/api/v1/feedback',
     ])
     expect(
       fetchMock.mock.calls.every(([, init]) => init?.method === 'POST'),
