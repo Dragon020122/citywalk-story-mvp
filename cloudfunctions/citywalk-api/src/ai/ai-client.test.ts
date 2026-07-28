@@ -7,8 +7,8 @@ const cloudBaseMocks = vi.hoisted(() => ({
   initialize: vi.fn(),
 }))
 
-vi.mock('@cloudbase/node-sdk', () => ({
-  init: cloudBaseMocks.initialize,
+vi.mock('../cloudbase-sdk.js', () => ({
+  initializeCloudBase: cloudBaseMocks.initialize,
 }))
 
 import {
@@ -85,7 +85,10 @@ describe('CloudBaseAiClient', () => {
 
   it('normalizes empty and provider error responses', async () => {
     const client = new CloudBaseAiClient()
-    cloudBaseMocks.generateText.mockResolvedValueOnce({ text: ' ', error: null })
+    cloudBaseMocks.generateText.mockResolvedValueOnce({
+      text: ' ',
+      error: null,
+    })
     await expect(
       client.generateText({ system: 'rules', prompt: 'story' }),
     ).rejects.toBeInstanceOf(AiClientError)

@@ -1,4 +1,5 @@
 export * from './map-route-provider.js'
+export * from './lazy-tencent-map-route-provider.js'
 export * from './mock-map-route-provider.js'
 export * from './plan-route.js'
 export * from './tencent-map-route-provider.js'

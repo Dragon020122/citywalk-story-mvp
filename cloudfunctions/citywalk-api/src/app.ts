@@ -46,9 +46,9 @@ import {
 } from './repositories/index.js'
 import type { MapRouteProvider } from './route/map-route-provider.js'
 import { MockMapRouteProvider } from './route/mock-map-route-provider.js'
+import { LazyTencentMapRouteProvider } from './route/lazy-tencent-map-route-provider.js'
 import { planRoute } from './route/plan-route.js'
 import { rerouteUnavailablePoi, RerouteError } from './route/reroute.js'
-import { TencentMapRouteProvider } from './route/tencent-map-route-provider.js'
 
 const HOUR_MS = 60 * 60 * 1000
 const MINUTE_MS = 60 * 1000
@@ -64,25 +64,25 @@ export interface AppDependencies {
   aiClient?: AiTextClient | null
 }
 
-const asyncHandler = (
-  handler: (
-    ...arguments_: Parameters<RequestHandler>
-  ) => Promise<void>,
-): RequestHandler => (request, response, next) => {
-  void handler(request, response, next).catch(next)
-}
+const asyncHandler =
+  (
+    handler: (...arguments_: Parameters<RequestHandler>) => Promise<void>,
+  ): RequestHandler =>
+  (request, response, next) => {
+    void handler(request, response, next).catch(next)
+  }
 
-const createNotImplementedHandler = (
-  feature: string,
-): RequestHandler => (_request, _response, next) => {
-  next(
-    new HttpError({
-      statusCode: 501,
-      code: 'AI_GENERATION_ERROR',
-      message: `${feature} is not available because AI is disabled in this stage`,
-    }),
-  )
-}
+const createNotImplementedHandler =
+  (feature: string): RequestHandler =>
+  (_request, _response, next) => {
+    next(
+      new HttpError({
+        statusCode: 501,
+        code: 'AI_GENERATION_ERROR',
+        message: `${feature} is not available because AI is disabled in this stage`,
+      }),
+    )
+  }
 
 export const createDefaultDependencies = (
   environment: NodeJS.ProcessEnv = process.env,
@@ -98,16 +98,16 @@ export const createDefaultDependencies = (
       config.nodeEnvironment === 'test') &&
       !config.tencentMapServerKey)
       ? new MockMapRouteProvider()
-      : new TencentMapRouteProvider({
+      : new LazyTencentMapRouteProvider({
           apiKey: config.tencentMapServerKey,
         })
   const aiClient =
     config.contentMode === 'verified' && config.cloudbaseEnvironmentId
-    ? new CloudBaseAiClient({
-        environmentId: config.cloudbaseEnvironmentId,
-        modelName: config.aiModel,
-      })
-    : null
+      ? new CloudBaseAiClient({
+          environmentId: config.cloudbaseEnvironmentId,
+          modelName: config.aiModel,
+        })
+      : null
   const storyWorkflow = aiClient
     ? new DefaultStoryWorkflow({
         aiClient,
@@ -235,37 +235,37 @@ export const createApp = (
       ? [
           validateBody(GenerateStoryRequestSchema),
           asyncHandler(async (request, response) => {
-          try {
-            const result = await dependencies.storyWorkflow!.generate(
-              request.body,
-            )
-            const now = dependencies.now().toISOString()
-            await repositories.storySessions.save({
-              id: result.blueprint.storyId,
-              storyId: result.blueprint.storyId,
-              clientIdHash: String(response.locals.clientIdHash),
-              preferences: request.body.preferences,
-              routePlan: request.body.routePlan,
-              blueprint: result.blueprint,
-              storyGraph: result.storyGraph,
-              createdAt: now,
-              updatedAt: now,
-            })
-            response.json(GenerateStoryResponseSchema.parse(result))
-          } catch (error) {
-            if (
-              error instanceof AiClientError ||
-              error instanceof AiOutputParseError ||
-              error instanceof BlueprintValidationError
-            ) {
-              throw new HttpError({
-                statusCode: 502,
-                code: 'AI_GENERATION_ERROR',
-                message: 'Story generation failed',
+            try {
+              const result = await dependencies.storyWorkflow!.generate(
+                request.body,
+              )
+              const now = dependencies.now().toISOString()
+              await repositories.storySessions.save({
+                id: result.blueprint.storyId,
+                storyId: result.blueprint.storyId,
+                clientIdHash: String(response.locals.clientIdHash),
+                preferences: request.body.preferences,
+                routePlan: request.body.routePlan,
+                blueprint: result.blueprint,
+                storyGraph: result.storyGraph,
+                createdAt: now,
+                updatedAt: now,
               })
+              response.json(GenerateStoryResponseSchema.parse(result))
+            } catch (error) {
+              if (
+                error instanceof AiClientError ||
+                error instanceof AiOutputParseError ||
+                error instanceof BlueprintValidationError
+              ) {
+                throw new HttpError({
+                  statusCode: 502,
+                  code: 'AI_GENERATION_ERROR',
+                  message: 'Story generation failed',
+                })
+              }
+              throw error
             }
-            throw error
-          }
           }),
         ]
       : [createNotImplementedHandler('Story generation')]),
@@ -283,67 +283,67 @@ export const createApp = (
       ? [
           validateBody(RegenerateNodeRequestSchema),
           asyncHandler(async (request, response) => {
-          const storyId = Array.isArray(request.params.storyId)
-            ? request.params.storyId[0]
-            : request.params.storyId
-          const nodeId = Array.isArray(request.params.nodeId)
-            ? request.params.nodeId[0]
-            : request.params.nodeId
-          const session = storyId
-            ? await repositories.storySessions.get(storyId)
-            : null
-          if (!session || !nodeId) {
-            throw new HttpError({
-              statusCode: 404,
-              code: 'STORY_NOT_FOUND',
-              message: 'Story or node not found',
-            })
-          }
-          const node = session.storyGraph.nodes.find(
-            (candidate) => candidate.id === nodeId,
-          )
-          if (!node) {
-            throw new HttpError({
-              statusCode: 404,
-              code: 'STORY_NOT_FOUND',
-              message: 'Story or node not found',
-            })
-          }
-          try {
-            const regenerated = await regenerateNodeCopy({
-              aiClient: dependencies.aiClient!,
-              node,
-              reason: request.body.reason,
-            })
-            const storyGraph = {
-              ...session.storyGraph,
-              nodes: session.storyGraph.nodes.map((candidate) =>
-                candidate.id === nodeId ? regenerated : candidate,
-              ),
-            }
-            await repositories.storySessions.save({
-              ...session,
-              storyGraph,
-              updatedAt: dependencies.now().toISOString(),
-            })
-            response.json(
-              RegenerateNodeResponseSchema.parse({
-                node: regenerated,
-              }),
-            )
-          } catch (error) {
-            if (
-              error instanceof AiClientError ||
-              error instanceof AiOutputParseError
-            ) {
+            const storyId = Array.isArray(request.params.storyId)
+              ? request.params.storyId[0]
+              : request.params.storyId
+            const nodeId = Array.isArray(request.params.nodeId)
+              ? request.params.nodeId[0]
+              : request.params.nodeId
+            const session = storyId
+              ? await repositories.storySessions.get(storyId)
+              : null
+            if (!session || !nodeId) {
               throw new HttpError({
-                statusCode: 502,
-                code: 'AI_GENERATION_ERROR',
-                message: 'Node regeneration failed',
+                statusCode: 404,
+                code: 'STORY_NOT_FOUND',
+                message: 'Story or node not found',
               })
             }
-            throw error
-          }
+            const node = session.storyGraph.nodes.find(
+              (candidate) => candidate.id === nodeId,
+            )
+            if (!node) {
+              throw new HttpError({
+                statusCode: 404,
+                code: 'STORY_NOT_FOUND',
+                message: 'Story or node not found',
+              })
+            }
+            try {
+              const regenerated = await regenerateNodeCopy({
+                aiClient: dependencies.aiClient!,
+                node,
+                reason: request.body.reason,
+              })
+              const storyGraph = {
+                ...session.storyGraph,
+                nodes: session.storyGraph.nodes.map((candidate) =>
+                  candidate.id === nodeId ? regenerated : candidate,
+                ),
+              }
+              await repositories.storySessions.save({
+                ...session,
+                storyGraph,
+                updatedAt: dependencies.now().toISOString(),
+              })
+              response.json(
+                RegenerateNodeResponseSchema.parse({
+                  node: regenerated,
+                }),
+              )
+            } catch (error) {
+              if (
+                error instanceof AiClientError ||
+                error instanceof AiOutputParseError
+              ) {
+                throw new HttpError({
+                  statusCode: 502,
+                  code: 'AI_GENERATION_ERROR',
+                  message: 'Node regeneration failed',
+                })
+              }
+              throw error
+            }
           }),
         ]
       : [createNotImplementedHandler('Node regeneration')]),
