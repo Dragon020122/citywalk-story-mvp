@@ -3,7 +3,7 @@ import {
   FeedbackRequestSchema,
   StoryCompletionSyncRequestSchema,
 } from '@citywalk/shared'
-import { apiUrl } from '../api-base'
+import { apiFetch } from '../api-client'
 import { db, type SyncQueueKind, type SyncQueueRecord } from './database'
 
 export const MAX_SYNC_ATTEMPTS = 3
@@ -46,7 +46,7 @@ export async function queueAnonymousEvent(
 }
 
 async function postSync(path: string, payload: unknown) {
-  const response = await fetch(apiUrl(path), {
+  const response = await apiFetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
