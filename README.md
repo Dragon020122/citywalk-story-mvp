@@ -97,6 +97,10 @@ npm run content:validate
 
 ## CloudBase AI
 
+## EdgeOne 临时预览
+
+三小时预览环境在 EdgeOne 控制台设置 `VITE_GENERATION_MODE=client-mock`。步骤 8 将只使用浏览器内的共享 Mock 路线和故事生成逻辑，不会请求 `/api`。正式域名或可用后端环境使用 `VITE_GENERATION_MODE=server`，保留原有 API 调用；模式不会因 HTTP 错误自动切换。
+
 故事生成分为 Blueprint 和 Story Graph 两段，带超时、有限修复和 Mock 回退。所有 AI 原始输出先经 JSON 解析和共享 Zod Schema 校验，校验失败不得直接进入客户端。客户端不得直接调用任何 AI 服务。
 
 ## 腾讯地图

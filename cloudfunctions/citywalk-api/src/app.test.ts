@@ -142,7 +142,7 @@ describe('CloudBase HTTP API foundation', () => {
       .send({ preferences })
 
     expect(response.status).toBe(200)
-    expect(response.body.routePlan.selectedPois).toHaveLength(7)
+    expect(response.body.routePlan.selectedPois).toHaveLength(3)
     expect(response.body.routePlan.routeId).toMatch(/^route_/u)
   })
 

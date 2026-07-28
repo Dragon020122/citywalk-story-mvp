@@ -192,7 +192,13 @@ describe('structured story workflow', () => {
   it('generates a schema-valid story without AI in mock mode', async () => {
     const result = await new MockStoryWorkflow().generate(request)
 
-    expect(result).toEqual(fixture)
+    expect(result).toEqual(expect.objectContaining({
+      fallbackUsed: true,
+      fallbackReason: 'STORY_GRAPH_INVALID',
+    }))
+    expect(result.storyGraph.nodes.every((node) =>
+      request.routePlan.selectedPois.some((poi) => poi.id === node.poiId),
+    )).toBe(true)
     expect(result.fallbackUsed).toBe(true)
   })
 

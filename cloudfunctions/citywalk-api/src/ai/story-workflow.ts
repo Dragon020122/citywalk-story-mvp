@@ -1,5 +1,6 @@
 import {
   GenerateStoryResponseSchema,
+  generateMockStory,
   type GenerateStoryRequest,
   type GenerateStoryResponse,
 } from '@citywalk/shared'
@@ -25,7 +26,7 @@ export class MockStoryWorkflow implements StoryWorkflow {
   async generate(
     request: GenerateStoryRequest,
   ): Promise<GenerateStoryResponse> {
-    return createMockStory(request)
+    return generateMockStory(request)
   }
 }
 

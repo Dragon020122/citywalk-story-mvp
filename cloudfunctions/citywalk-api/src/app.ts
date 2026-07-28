@@ -15,6 +15,7 @@ import {
   RerouteResponseSchema,
   RoutePlanningError,
   StoryCompletionSyncRequestSchema,
+  planMockRoute,
 } from '@citywalk/shared'
 import {
   AiClientError,
@@ -199,14 +200,16 @@ export const createApp = (
     validateBody(PlanRouteRequestSchema),
     asyncHandler(async (request, response) => {
       try {
-        const pois = await dependencies.poiSource.load()
-        const routePlan = await planRoute({
-          preferences: request.body.preferences,
-          pois,
-          contentMode: config.contentMode,
-          dataVersion: config.poiDataVersion,
-          mapProvider: dependencies.mapProvider,
-        })
+        const routePlan =
+          config.contentMode === 'mock'
+            ? planMockRoute(request.body.preferences)
+            : await planRoute({
+                preferences: request.body.preferences,
+                pois: await dependencies.poiSource.load(),
+                contentMode: config.contentMode,
+                dataVersion: config.poiDataVersion,
+                mapProvider: dependencies.mapProvider,
+              })
         response.json(PlanRouteResponseSchema.parse({ routePlan }))
       } catch (error) {
         if (error instanceof RoutePlanningError) {

@@ -5,7 +5,10 @@ import type {
   JourneyPreferences,
   RoutePlan,
 } from '@citywalk/shared'
-import { generateJourneyStory, planJourneyRoute } from '../api-client'
+import {
+  generateJourneyStory,
+  planJourneyRoute,
+} from '../services/generation-adapter'
 import { loadPendingGeneration, saveGenerationResult } from '../journey-storage'
 
 export type GenerationStatus =
