@@ -8,10 +8,9 @@
   ],
   "cloudFunctions": {
     "nodejs": {
-      "includeFiles": [
-        "content/generated/pois.json"
-      ],
-      "maxDuration": 60
+      "includeFiles": ["content/generated/pois.json"],
+      "maxDuration": 60,
+      "externalNodeModules": ["ws"]
     }
   }
 }

@@ -10,11 +10,19 @@ describe('EdgeOne Makers deployment configuration', () => {
   it('keeps the API function namespace ahead of the SPA fallback contract', async () => {
     const file = await readFile(resolve('edgeone.json'), 'utf8')
     const config: unknown = JSON.parse(file)
+    const rootPackage: unknown = JSON.parse(
+      await readFile(resolve('package.json'), 'utf8'),
+    )
 
     expect(config).toMatchObject({
       outputDirectory: 'apps/web/dist',
       rewrites: [{ source: '/*', destination: '/index.html' }],
-      cloudFunctions: { nodejs: { maxDuration: 60 } },
+      cloudFunctions: {
+        nodejs: { maxDuration: 60, externalNodeModules: ['ws'] },
+      },
+    })
+    expect(rootPackage).toMatchObject({
+      dependencies: { ws: expect.any(String) },
     })
     expect(file).not.toContain('//')
     expect(

@@ -24,6 +24,7 @@
     "typecheck": "tsc -p tsconfig.scripts.json --noEmit && tsc -p tsconfig.edgeone.json --noEmit && npm run typecheck --workspaces --if-present",
     "content:validate": "tsx scripts/import-pois.ts content/pois/mock-pois.csv",
     "release:audit": "tsx scripts/release-audit.ts",
+    "verify:edgeone": "vitest run scripts/edgeone-config.test.ts",
     "check": "npm run lint && npm run typecheck && npm run test:unit && npm run build",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
@@ -43,5 +44,8 @@
   "engines": {
     "node": ">=20",
     "npm": ">=10"
+  },
+  "dependencies": {
+    "ws": "^8.21.1"
   }
 }
