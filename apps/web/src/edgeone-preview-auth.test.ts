@@ -2,10 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const originalUrl = window.location.href
 
-async function loadApiBase(path: string) {
+async function loadAuth(path: string) {
   window.history.replaceState({}, '', path)
   vi.resetModules()
-  return import('./api-base')
+  return import('./edgeone-preview-auth')
 }
 
 afterEach(() => {
@@ -15,41 +15,35 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('EdgeOne preview token API URL handling', () => {
-  it('leaves same-origin API URLs unchanged without a preview token', async () => {
-    const { buildApiUrl } = await loadApiBase('/create')
-    expect(buildApiUrl('/health')).toBe('/api/health')
+describe('EdgeOne preview runtime authentication', () => {
+  it('captures the initial token before React rendering and keeps it in memory', async () => {
+    const auth = await loadAuth('/?eo_token=test-token&eo_time=9999999999')
+    auth.initEdgeOnePreviewAuth()
+    window.history.replaceState({}, '', '/create')
+    expect(auth.getEdgeOnePreviewToken()).toBe('test-token')
   })
 
-  it('adds the initial preview token while preserving existing API parameters', async () => {
-    const { buildApiUrl } = await loadApiBase('/?eo_token=test-token')
-    expect(buildApiUrl('/health?debug=1')).toBe(
-      '/api/health?debug=1&eo_token=test-token',
+  it('preserves preview parameters for same-origin navigation only', async () => {
+    const auth = await loadAuth('/?eo_token=test-token&eo_time=9999999999')
+    auth.initEdgeOnePreviewAuth()
+    expect(auth.withEdgeOnePreviewNavigation('/story/story_test/preview')).toBe(
+      '/story/story_test/preview?eo_token=test-token&eo_time=9999999999',
     )
   })
 
-  it('replaces rather than duplicates an existing preview-token parameter', async () => {
-    const { buildApiUrl } = await loadApiBase('/?eo_token=test-token')
-    expect(buildApiUrl('/health?eo_token=stale-token')).toBe(
-      '/api/health?eo_token=test-token',
-    )
-  })
-
-  it('does not attach the token to external or non-API URLs', async () => {
-    const { withEdgeOnePreviewToken } = await (async () => {
-      window.history.replaceState({}, '', '/?eo_token=test-token')
-      vi.resetModules()
-      return import('./edgeone-preview-auth')
-    })()
-    expect(withEdgeOnePreviewToken('https://example.com/api/health')).toBe(
-      'https://example.com/api/health',
-    )
-    expect(withEdgeOnePreviewToken('/assets/app.js')).toBe('/assets/app.js')
+  it('does not put preview parameters on API or external URLs', async () => {
+    const auth = await loadAuth('/?eo_token=test-token')
+    auth.initEdgeOnePreviewAuth()
+    expect(auth.withEdgeOnePreviewNavigation('/api/health')).toBe('/api/health')
+    expect(
+      auth.withEdgeOnePreviewNavigation('https://example.com/create'),
+    ).toBe('https://example.com/create')
   })
 
   it('recognizes EdgeOne preview hostnames without treating other domains as previews', async () => {
-    const { isEdgeOnePreviewHostname } = await import('./edgeone-preview-auth')
+    const { isEdgeOnePreviewHostname } = await loadAuth('/')
     expect(isEdgeOnePreviewHostname('preview.edgeone.app')).toBe(true)
+    expect(isEdgeOnePreviewHostname('preview.edgeone.cool')).toBe(true)
     expect(isEdgeOnePreviewHostname('app.example.com')).toBe(false)
   })
 })

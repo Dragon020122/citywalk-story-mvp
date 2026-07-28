@@ -34,6 +34,7 @@ import {
 } from '../persistence/hooks'
 import { db, deleteStoryCascade } from '../persistence/database'
 import { ResultsExperience } from '../results/ResultsExperience'
+import { appBuildId } from '../app-build'
 
 interface PageShellProps extends PropsWithChildren {
   title: string
@@ -415,6 +416,9 @@ export function SettingsPage() {
 
   return (
     <PageShell title="偏好设置" eyebrow="SETTINGS">
+      <p className="muted" data-testid="app-build-id">
+        BUILD {appBuildId}
+      </p>
       <Card>
         <Settings aria-hidden="true" />
         <h2>现场提示</h2>

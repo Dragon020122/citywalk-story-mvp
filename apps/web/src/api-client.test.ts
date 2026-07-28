@@ -17,7 +17,7 @@ afterEach(() => {
 })
 
 describe('API client EdgeOne preview support', () => {
-  it('adds the preview token to route and story requests, but never to their JSON bodies', async () => {
+  it('uses cookie-backed same-origin API URLs without putting preview tokens in bodies', async () => {
     const client = await loadApiClient('/?eo_token=test-token')
     const fetchMock = vi
       .fn()
@@ -50,18 +50,22 @@ describe('API client EdgeOne preview support', () => {
     )
 
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      '/api/v1/routes/plan?eo_token=test-token',
-      '/api/v1/stories/generate?eo_token=test-token',
+      '/api/v1/routes/plan',
+      '/api/v1/stories/generate',
     ])
     for (const [, init] of fetchMock.mock.calls) {
       expect(JSON.parse(String(init?.body))).not.toHaveProperty('eo_token')
+      expect(init?.credentials).toBe('same-origin')
     }
   })
 
   it('classifies 401 responses for preview expiry, missing credentials, and ordinary authorization', async () => {
     const { classifyHttpError } = await loadApiClient('/')
-    expect(classifyHttpError(401, true, true)).toBe(
+    expect(classifyHttpError(401, true, true, true)).toBe(
       'EDGEONE_PREVIEW_TOKEN_EXPIRED',
+    )
+    expect(classifyHttpError(401, true, true)).toBe(
+      'EDGEONE_PREVIEW_AUTH_FAILED',
     )
     expect(classifyHttpError(401, false, true)).toBe(
       'EDGEONE_PREVIEW_TOKEN_MISSING',

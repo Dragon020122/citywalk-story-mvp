@@ -16,5 +16,11 @@ describe('EdgeOne Makers deployment configuration', () => {
     expect(
       await readFile(resolve('cloud-functions/api/[[default]].ts'), 'utf8'),
     ).toContain('export default app')
+    const viteConfig = await readFile(
+      resolve('apps/web/vite.config.ts'),
+      'utf8',
+    )
+    expect(viteConfig).toContain('/^\\/api(?:\\/|$)/')
+    expect(viteConfig).toContain("handler: 'NetworkOnly'")
   })
 })
